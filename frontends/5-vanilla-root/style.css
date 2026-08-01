@@ -44,10 +44,11 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   position: relative;
   padding: 0 24px 40px 24px;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior-y: contain;
   will-change: scroll-position;
-  contain: layout paint;
+}
+
+.scroll-container.is-scrolling .photo-card {
+  pointer-events: none !important;
 }
 
 .virtual-grid { position: relative; width: 100%; min-height: 100%; }

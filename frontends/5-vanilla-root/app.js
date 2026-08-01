@@ -221,8 +221,19 @@
     navigate(dir);
   }
 
+  let isScrollingTimer = null;
   function setupEventListeners() {
-    scrollContainer.addEventListener('scroll', () => requestAnimationFrame(renderVirtualGrid), { passive: true });
+    scrollContainer.addEventListener('scroll', () => {
+      if (!scrollContainer.classList.contains('is-scrolling')) {
+        scrollContainer.classList.add('is-scrolling');
+      }
+      clearTimeout(isScrollingTimer);
+      isScrollingTimer = setTimeout(() => {
+        scrollContainer.classList.remove('is-scrolling');
+      }, 150);
+
+      requestAnimationFrame(renderVirtualGrid);
+    }, { passive: true });
     window.addEventListener('resize', computeLayout);
     lightboxModal.addEventListener('wheel', handleLightboxWheel, { passive: false });
     btnPrevPhoto.addEventListener('click', (e) => { e.stopPropagation(); navigate(-1); });

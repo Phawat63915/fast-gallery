@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div ref="gridContainer" class="grid-container" @scroll="handleScroll">
+  <div ref="gridContainer" class="grid-container" :class="{ 'is-scrolling': isScrolling }" @scroll="handleScroll">
     <div :style="{ height: virtualData.topSpacer + 'px', width: '100%' }"></div>
     <div
       v-for="item in virtualData.items"
@@ -113,8 +113,16 @@ const virtualData = computed(() => {
   return { items, topSpacer, bottomSpacer };
 });
 
+const isScrolling = ref(false);
+let isScrollingTimer = null;
+
 function handleScroll(e) {
   scrollTop.value = e.target.scrollTop;
+  if (!isScrolling.value) isScrolling.value = true;
+  clearTimeout(isScrollingTimer);
+  isScrollingTimer = setTimeout(() => {
+    isScrolling.value = false;
+  }, 150);
 }
 
 async function fetchPhotos() {
@@ -255,6 +263,10 @@ function handleKeydown(e) {
   gap: 3px;
   -webkit-overflow-scrolling: touch;
   will-change: scroll-position;
+}
+
+.grid-container.is-scrolling .tile {
+  pointer-events: none !important;
 }
 
 .tile {

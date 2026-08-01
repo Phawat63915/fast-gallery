@@ -67,8 +67,16 @@ export default function App() {
     return { items, topSpacer, bottomSpacer };
   }, [photos, scrollTop, viewportHeight]);
 
+  const [isScrolling, setIsScrolling] = useState(false);
+  const isScrollingTimer = useRef(null);
+
   function handleScroll(e) {
     setScrollTop(e.target.scrollTop);
+    if (!isScrolling) setIsScrolling(true);
+    clearTimeout(isScrollingTimer.current);
+    isScrollingTimer.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, 150);
   }
 
   function scheduleIdlePrefetch(index, direction = 1) {
@@ -203,6 +211,10 @@ export default function App() {
           will-change: scroll-position;
         }
 
+        .grid-container.is-scrolling .tile {
+          pointer-events: none !important;
+        }
+
         .tile {
           height: 220px;
           flex-grow: 1;
@@ -244,7 +256,7 @@ export default function App() {
         </div>
       </div>
 
-      <div ref={gridContainerRef} className="grid-container" onScroll={handleScroll}>
+      <div ref={gridContainerRef} className={`grid-container ${isScrolling ? 'is-scrolling' : ''}`} onScroll={handleScroll}>
         <div style={{ height: `${virtualData.topSpacer}px`, width: '100%' }}></div>
         {virtualData.items.map((item) => (
           <div

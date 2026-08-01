@@ -72,8 +72,16 @@
     return { items, topSpacer, bottomSpacer };
   });
 
+  let isScrolling = $state(false);
+  let isScrollingTimer;
+
   function handleScroll(e) {
     scrollTop = e.target.scrollTop;
+    if (!isScrolling) isScrolling = true;
+    clearTimeout(isScrollingTimer);
+    isScrollingTimer = setTimeout(() => {
+      isScrolling = false;
+    }, 150);
   }
 
   function scheduleIdlePrefetch(index, direction = 1) {
@@ -200,6 +208,10 @@
     -webkit-overflow-scrolling: touch;
     will-change: scroll-position;
   }
+
+  .grid-container.is-scrolling .tile {
+    pointer-events: none !important;
+  }
   
   .tile {
     height: 220px;
@@ -242,7 +254,7 @@
   </div>
 </div>
 
-<div class="grid-container" bind:this={gridContainer} onscroll={handleScroll}>
+<div class="grid-container" class:is-scrolling={isScrolling} bind:this={gridContainer} onscroll={handleScroll}>
   <div style="height: {virtualData.topSpacer}px; width: 100%;"></div>
   {#each virtualData.items as item (item.photo.id)}
     <div class="tile" style="width: {220 * (item.photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(item.globalIndex)}>

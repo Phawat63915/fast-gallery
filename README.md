@@ -8,8 +8,8 @@
 1. [ภาพรวมของโปรเจกต์ (Project Overview)](#-ภาพรวมของโปรเจกต์-project-overview)
 2. [โครงสร้างไดเรกทอรีแบบ Tree (Directory Tree Structure)](#-โครงสร้างไดเรกทอรีแบบ-tree-directory-tree-structure)
 3. [เทคโนโลยีที่ใช้ในระบบ (Technology Stack & Innovations)](#-เทคโนโลยีที่ใช้ในระบบ-technology-stack--innovations)
-4. [พอร์ตและการเปิดใช้งาน (Ports & Running Guide)](#-พอร์ตและการเปิดใช้งาน-ports--running-guide)
-5. [คู่มือการพัฒนาต่อยอดสำหรับนักพัฒนา (Developer Guide & Future Roadmap)](#-คู่มือการพัฒนาต่อยอดสำหรับนักพัฒนา-developer-guide--future-roadmap)
+4. [พอร์ตและการเปิดใช้งาน (Ports & Quick Start)](#-พอร์ตและการเปิดใช้งาน-ports--quick-start)
+5. [คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน (Developer CLI Command Guide)](#-คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน-developer-cli-command-guide)
 
 ---
 
@@ -25,7 +25,7 @@
 
 ```text
 fast-gallery/
-├── 📄 README.md                      # เอกสารคู่มือโครงการ สถาปัตยกรรม และคำแนะนำการพัฒนาต่อ
+├── 📄 README.md                      # เอกสารคู่มือโครงการ สถาปัตยกรรม และคำสั่งการพัฒนา
 ├── 📄 docker-compose.yml             # คอนฟิกูเรชัน Docker สำหรับ PostgreSQL 16 Database
 ├── 📜 build.sh                       # สคริปต์สำหรับการคอมไพล์ Frontend และ Backend
 ├── 📜 run-all.sh                     # สคริปต์เปิดรันบริการทั้งหมด (พอร์ต 8880 - 8885) พร้อมกัน
@@ -97,20 +97,7 @@ fast-gallery/
 
 ---
 
-### 3. 💡 นวัตกรรมและเทคนิคการ Optimize ที่ติดตั้งในระบบ (Advanced Optimizations)
-
-| เทคนิค (Technique) | รายละเอียดและการทำงาน | ผลลัพธ์ที่ได้ |
-| :--- | :--- | :--- |
-| **GPU Async Pre-decoding** | เรียกใช้ `img.decode()` Off-thread ก่อนยัดเข้า DOM | ป้องกันเฟรมตก (Frame Drop) 0ms Stutter ขณะสลับรูปภาพ |
-| **LRU Memory Cache Eviction** | จำกัดขนาด Cache ในหน่วยความจำสูงสุด 50 รูป ถอดภาพเก่าออกด้วย `shift()` | ไร้อาการ Garbage Collection Pause (0ms GC Stutter) แรมนิ่งตลอดการใช้งาน |
-| **12-Row Safety Buffer (2,600px)** | เรนเดอร์รูปภาพสำรองล่วงหน้า 12 แถวรอบสายตา | ป้องกันปัญหาหน้าจอค้างขอบเวลารูดทัชแพดเลื่อนลงความเร็วสูง (Inertia Fling) |
-| **Active Scroll Suppression** | สั่ง `pointer-events: none` บนรูปภาพขณะเมาส์ลาก Scrollbar | ป้องกันการคำนวณ Hover Effect ซ้ำซ้อน ลากแถบเลื่อนลื่นระดับ 120 FPS |
-| **99,999 File Streaming Queue** | ใช้ **6-Worker Parallel Connection Pool** ซอยไฟล์ส่งแบบมัลติสตรีม | รองรับการเลือกและอัปโหลดรูปภาพ 99,999+ ไฟล์พร้อมกันโดยบราวเซอร์ไม่แครช |
-| **Cursor-based Infinite Scroll** | ดึงข้อมูลคิวพิกัดด้วย `next_cursor` ครั้งละ 500 รูป | เลื่อนดูรูปภาพถ่ายย้อนหลัง 5,000 - 100,000+ รูปได้ต่อเนื่องโดยไม่เด้งกลับรูปที่ 1 |
-
----
-
-## 🔌 พอร์ตและการเปิดใช้งาน (Ports & Running Guide)
+## 🔌 พอร์ตและการเปิดใช้งาน (Ports & Quick Start)
 
 ### 🚀 คำสั่งเปิดใช้งานระบบทั้งหมดในครั้งเดียว
 ```bash
@@ -118,73 +105,163 @@ cd /root/server/git/fast-gallery
 ./run-all.sh
 ```
 
-### 🌐 ตารางแสดงพอร์ตบริการทั้งหมด
-
-| พอร์ต (Port) | บริการ (Service) | รายละเอียด (Description) |
+| พอร์ต (Port) | บริการ (Service) | คำสั่งเปิดใช้งานรวดเร็ว (Quick Command) |
 | :--- | :--- | :--- |
-| **`8880`** | Go 1.26 Backend API | REST API (`/api/photos`, `/api/upload`, `/api/stats`) + SQLite / Postgres |
-| **`8881`** | Stack 1 Frontend | Vanilla JS + Web Worker Off-Thread Virtualization |
-| **`8882`** | Stack 2 Frontend | Svelte 5 (Immich Engine Choice) |
-| **`8883`** | Stack 3 Frontend | Vue 3 Composition API |
-| **`8884`** | Stack 4 Frontend | React 19 Ecosystem |
-| **`8885`** | Stack 5 Frontend | Vanilla Root Classic Layout |
+| **`8880`** | Go 1.26 Backend API | `cd backend && go run main.go` |
+| **`8881`** | Stack 1 (Vanilla Worker) | `npx serve -l 8881 frontends/1-vanilla-worker` |
+| **`8882`** | Stack 2 (Svelte 5) | `cd frontends/2-svelte && npm run dev -- --port 8882` |
+| **`8883`** | Stack 3 (Vue 3) | `cd frontends/3-vue && npm run dev -- --port 8883` |
+| **`8884`** | Stack 4 (React 19) | `cd frontends/4-react && npm run dev -- --port 8884` |
+| **`8885`** | Stack 5 (Vanilla Root) | `npx serve -l 8885 frontends/5-vanilla-root` |
 
 ---
 
-## 🛠️ คู่มือการพัฒนาต่อยอดสำหรับนักพัฒนา (Developer Guide & Future Roadmap)
+## 💻 คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน (Developer CLI Command Guide)
 
-หากคุณต้องการพัฒนาโปรเจกต์ **FastGallery** ต่อให้มีความสามารถครบครันเทียบเท่า Google Photos หรือ Immich สามารถทำตามคำแนะนำสถาปัตยกรรมด้านล่างนี้ได้เลยครับ:
+หากต้องการเข้าแก้ไข เพิ่มฟีเจอร์ หรือพัฒนาต่อยอดในแต่ละส่วนของโครงการ ให้ใช้คำสั่ง Terminal แยกตามแต่ละโปรเจกต์ดังนี้ครับ:
 
-```mermaid
-flowchart LR
-    A["🎥 1. Video Transcoding (FFmpeg HLS)"] --> B["🧠 2. AI Face & Object Detection"]
-    B --> C["📍 3. EXIF Map & Interactive Timeline"]
-    C --> D["🔐 4. Multi-Tenant OAuth2 / OIDC Auth"]
-    D --> E["☁️ 5. Distributed S3 Storage (MinIO / AWS S3)"]
+---
+
+### 1. ⚙️ Go Backend (`/backend`)
+
+```bash
+# 1.1 ย้ายไปที่ไดเรกทอรี Backend
+cd /root/server/git/fast-gallery/backend
+
+# 1.2 รันเซิร์ฟเวอร์หลังบ้านในโหมด Development (Port 8880)
+go run main.go
+
+# 1.3 รันชุดทดสอบ (Unit Tests) ในโหมด Isolated SQLite In-Memory
+go test ./... -v
+
+# 1.4 ติดตั้ง Dependency ใหม่ของ Go (เช่น goexif หรือ pgvector)
+go get github.com/rwcarlsen/goexif/exif
+go mod tidy
+
+# 1.5 คอมไพล์ Binary สำหรับ Production
+go build -ldflags="-s -w" -o server main.go
 ```
 
 ---
 
-### Step 1: 🎥 ระบบรองรับวิดีโอ (Video Transcoding Engine)
-- **แนวทาง**: ติดตั้ง `ffmpeg` ในระบบหลังบ้าน (Go Backend)
-- **การ 구현**: 
-  - เมื่อผู้ใช้อัปโหลดไฟล์ `.mp4`, `.mov`, `.mkv` ให้ Go Worker เรียกคำสั่ง `ffmpeg` ถอดรหัสย่อเป็น **HLS Streaming (`.m3u8` + `.ts` chunks)**
-  - เพิ่มฟิลด์ `type: "image" | "video"` ใน `Photo` struct ใน [database.go](file:///root/server/git/fast-gallery/backend/db/database.go)
-  - หน้าบ้านให้ใช้ `<video>` ร่วมกับ `hls.js` เรนเดอร์บน Lightbox
+### 2. 1️⃣ Stack 1: Vanilla JS + Web Worker (`/frontends/1-vanilla-worker`)
+
+```bash
+# 2.1 ย้ายไปที่โฟลเดอร์ Stack 1
+cd /root/server/git/fast-gallery/frontends/1-vanilla-worker
+
+# 2.2 เปิดรันเซิร์ฟเวอร์พอร์ต 8881
+npx serve -l 8881 .
+
+# (หมายเหตุ: เป็น Pure Vanilla JS ไร้ Dependency ไม่ต้อง npm install หรือ npm run build)
+```
 
 ---
 
-### Step 2: 🧠 ระบบตรวจจับใบหน้าและค้นหาภาพด้วย AI (AI Face Detection & Vector Search)
-- **แนวทาง**: ใช้ **ONNX Runtime (Go)** หรือเชื่อมต่อกับ Python Microservice (CLIP Model)
-- **การ 구현**:
-  - ใช้โมเดล **OpenAI CLIP (ViT-B/32)** สกัดภาพถ่ายเป็น Vector Embedding (512-dimensional vector)
-  - จัดเก็บพิกัด Vector ลงใน PostgreSQL 16 โดยใช้ Extension `pgvector`
-  - ทำช่องค้นหาด้วยข้อความ (Semantic Search) เช่น *"รูปสุนัขวิ่งบนชายหาด"* หรือ *"ภาพถ่ายงานแต่งงาน"*
+### 3. 2️⃣ Stack 2: Svelte 5 (`/frontends/2-svelte`)
+
+```bash
+# 3.1 ย้ายไปที่โฟลเดอร์ Svelte 5
+cd /root/server/git/fast-gallery/frontends/2-svelte
+
+# 3.2 ติดตั้ง Node Packages (ทำครั้งแรก)
+npm install
+
+# 3.3 เปิดรัน Dev Server บนพอร์ต 8882 (มี Hot Reloading)
+npm run dev -- --port 8882 --host
+
+# 3.4 เพิ่มแพ็กเกจใหม่ เช่น lucide-svelte
+npm install lucide-svelte
+
+# 3.5 บิลด์ไฟล์ Production Bundle (สร้างโฟลเดอร์ /dist)
+npm run build
+
+# 3.6 พรีวิวไฟล์ Production บิลด์
+npm run preview -- --port 8882
+```
 
 ---
 
-### Step 3: 📍 ระบบแผนที่พิกัดภาพถ่ายและไทม์ไลน์ (EXIF Geocoding Map & Interactive Timeline)
-- **แนวทาง**: สกัดค่า GPS EXIF จากภาพถ่ายด้วยไลบรารี `rwcarlsen/goexif`
-- **การ 구현**:
-  - อ่านค่า `Latitude` และ `Longitude` จากภาพถ่ายตอนอัปโหลด จัดเก็บบันทึกลง PostgreSQL
-  - หน้าบ้านติดตั้ง **Leaflet.js** หรือ **Mapbox GL** สำหรับปักหมุดภาพถ่ายบนแผนที่โลก
+### 4. 3️⃣ Stack 3: Vue 3 Composition API (`/frontends/3-vue`)
+
+```bash
+# 4.1 ย้ายไปที่โฟลเดอร์ Vue 3
+cd /root/server/git/fast-gallery/frontends/3-vue
+
+# 4.2 ติดตั้ง Node Packages (ทำครั้งแรก)
+npm install
+
+# 4.3 เปิดรัน Dev Server บนพอร์ต 8883 (มี Hot Reloading)
+npm run dev -- --port 8883 --host
+
+# 4.4 เพิ่มแพ็กเกจใหม่ เช่น @vueuse/core
+npm install @vueuse/core
+
+# 4.5 บิลด์ไฟล์ Production Bundle (สร้างโฟลเดอร์ /dist)
+npm run build
+
+# 4.6 พรีวิวไฟล์ Production บิลด์
+npm run preview -- --port 8883
+```
 
 ---
 
-### Step 4: 🔐 ระบบยืนยันตัวตนหลายผู้ใช้ (Multi-Tenant OAuth2 / OIDC Auth)
-- **แนวทาง**: เพิ่มการยืนยันตัวตนด้วย OAuth2 (Google Login, Keycloak, Immich Auth)
-- **การ 구현**:
-  - สร้าง Table `users` และ `albums` ใน [database.go](file:///root/server/git/fast-gallery/backend/db/database.go)
-  - ใช้ JWT (JSON Web Tokens) ขนาบส่งไปใน HTTP Header `Authorization: Bearer <token>`
-  - กรองสิทธิ์ภาพถ่ายแยกระหว่างผู้ใช้แต่ละคน (Multi-Tenancy Isolation)
+### 5. 4️⃣ Stack 4: React 19 (`/frontends/4-react`)
+
+```bash
+# 5.1 ย้ายไปที่โฟลเดอร์ React 19
+cd /root/server/git/fast-gallery/frontends/4-react
+
+# 5.2 ติดตั้ง Node Packages (ทำครั้งแรก)
+npm install
+
+# 5.3 เปิดรัน Dev Server บนพอร์ต 8884 (มี Hot Reloading)
+npm run dev -- --port 8884 --host
+
+# 5.4 เพิ่มแพ็กเกจใหม่ เช่น lucide-react หรือ framer-motion
+npm install lucide-react framer-motion
+
+# 5.5 บิลด์ไฟล์ Production Bundle (สร้างโฟลเดอร์ /dist)
+npm run build
+
+# 5.6 พรีวิวไฟล์ Production บิลด์
+npm run preview -- --port 8884
+```
 
 ---
 
-### Step 5: ☁️ ระบบจัดเก็บข้อมูลคลาวด์ (Distributed S3 Object Storage)
-- **แนวทาง**: เปลี่ยนจากการเก็บไฟล์ใน Local Disk (`/data/original/`) ไปเก็บบน **AWS S3 / MinIO / Cloudflare R2**
-- **การ 구현**:
-  - ใช้ AWS SDK for Go (`aws/aws-sdk-go-v2`)
-  - อัปโหลดไฟล์ตรงจากหน้าบ้านเข้า S3 โดยใช้ **S3 Presigned URLs** เพื่อลดภาระแบนด์วิธของ Go Backend Server
+### 6. 5️⃣ Stack 5: Vanilla Root Classic (`/frontends/5-vanilla-root`)
+
+```bash
+# 6.1 ย้ายไปที่โฟลเดอร์ Stack 5
+cd /root/server/git/fast-gallery/frontends/5-vanilla-root
+
+# 6.2 เปิดรันเซิร์ฟเวอร์พอร์ต 8885
+npx serve -l 8885 .
+
+# (หมายเหตุ: เป็น Pure Vanilla JS ไร้ Dependency ไม่ต้อง npm run build)
+```
+
+---
+
+### 7. 🐘 PostgreSQL 16 & Docker Management Commands
+
+```bash
+# 7.1 ย้ายไปที่โฟลเดอร์ Root ของโปรเจกต์
+cd /root/server/git/fast-gallery
+
+# 7.2 สั่งเปิด PostgreSQL 16 Container ในฉากหลัง
+docker compose up -d
+
+# 7.3 สั่งปิดตัว PostgreSQL 16 Container
+docker compose down
+
+# 7.4 เช็ก Log ของ PostgreSQL 16 DB
+docker compose logs -f postgres
+
+# 7.5 เข้าคำสั่ง SQL Command Line (psql) ใน Postgres Container
+docker exec -it fast-gallery-db psql -U postgres -d fast_gallery
+```
 
 ---
 

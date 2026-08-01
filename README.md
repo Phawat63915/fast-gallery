@@ -7,9 +7,10 @@
 ## 📌 สารบัญ (Table of Contents)
 1. [ภาพรวมของโปรเจกต์ (Project Overview)](#-ภาพรวมของโปรเจกต์-project-overview)
 2. [โครงสร้างไดเรกทอรีแบบ Tree (Directory Tree Structure)](#-โครงสร้างไดเรกทอรีแบบ-tree-directory-tree-structure)
-3. [เทคโนโลยีที่ใช้ในระบบ (Technology Stack & Innovations)](#-เทคโนโลยีที่ใช้ในระบบ-technology-stack--innovations)
-4. [พอร์ตและการเปิดใช้งาน (Ports & Quick Start)](#-พอร์ตและการเปิดใช้งาน-ports--quick-start)
-5. [คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน (Developer CLI Command Guide)](#-คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน-developer-cli-command-guide)
+3. [แผนภาพและไดอะแกรมการทำงานของ API (API Work Flow Tree & Diagram)](#-แผนภาพและไดอะแกรมการทำงานของ-api-api-work-flow-tree--diagram)
+4. [เทคโนโลยีที่ใช้ในระบบ (Technology Stack & Innovations)](#-เทคโนโลยีที่ใช้ในระบบ-technology-stack--innovations)
+5. [พอร์ตและการเปิดใช้งาน (Ports & Quick Start)](#-พอร์ตและการเปิดใช้งาน-ports--quick-start)
+6. [คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน (Developer CLI Command Guide)](#-คู่มือคำสั่งการพัฒนาต่อยอดของแต่ละส่วน-developer-cli-command-guide)
 
 ---
 
@@ -72,6 +73,100 @@ fast-gallery/
         ├── 📄 index.html             # HTML Shell และ Upload Progress Modal
         ├── 📄 app.js                 # Vanilla Classic Windowing Virtualizer (Port 8885)
         └── 📄 style.css              # Styling & GPU Acceleration
+```
+
+---
+
+## 🗺️ แผนภาพและไดอะแกรมการทำงานของ API (API Work Flow Tree & Diagram)
+
+### 1. 🔄 ไดอะแกรมลำดับการประมวลผลข้อมูลหลังบ้าน (Backend Processing Sequence)
+
+```mermaid
+flowchart TD
+    Client["🌐 Client Frontends (Ports 8881 - 8885)"] -->|HTTP Request| Middleware["🛡️ CORS & Gzip Compression Middleware"]
+    
+    Middleware --> RouteChoice{"🔀 Router Handler (Port 8880)"}
+    
+    RouteChoice -->|GET /api/photos?limit=500&cursor=TIMESTAMP| GetPhotos["🖼️ handleGetPhotos"]
+    RouteChoice -->|POST /api/upload| UploadPhotos["⚡ handleUploadPhoto"]
+    RouteChoice -->|GET /api/stats| GetStats["📊 handleGetStats"]
+    RouteChoice -->|GET /data/micro/* & /data/original/*| ServeStatic["📁 Static Asset File Server"]
+
+    GetPhotos -->|Check Cache| MemoryCache{"🧠 In-Memory API Cache"}
+    MemoryCache -->|Cache Hit (1ms)| ReturnCache["🚀 Write Gzip JSON Response"]
+    MemoryCache -->|Cache Miss| QueryDB["🗄️ database.GetPhotos(cursor, limit)"]
+    QueryDB --> PostgresOrSqlite["🐘 PostgreSQL 16 / ⚡ SQLite WAL Mode"]
+    PostgresOrSqlite --> CacheSave["💾 Store Result in Cache"] --> ReturnCache
+
+    UploadPhotos -->|Buffer Stream| MultipartParser["📦 ParseMultipartForm (500MB Buffer)"]
+    MultipartParser --> WorkerPool["🧠 Go 32-Goroutine Parallel Worker Pool"]
+    WorkerPool --> Worker1["⚙️ Save Original File to Disk"]
+    WorkerPool --> Worker2["⚙️ Generate Micro Thumbnail + Thumbhash Blur"]
+    WorkerPool --> Worker3["⚙️ Extract EXIF Metadata + Write Database Row"]
+    Worker1 & Worker2 & Worker3 --> ClearCache["🧹 Clear API Cache"] --> ReturnUploadSuccess["✅ Return JSON { success: true }"]
+
+    GetStats --> StatCollector["📈 Read Runtime MemStats & DB Count"] --> ReturnStats["📊 Return Stats JSON"]
+```
+
+---
+
+### 2. 🌲 แผนผังโครงสร้างของ API Endpoints (API Endpoint Tree Overview)
+
+```text
+HTTP REST API Pipeline (Go Backend Port 8880)
+│
+├── 🛡️ Gzip & CORS Middleware Layer
+│   ├── Gzip Compression (ลดขนาดข้อมูล JSON เหลือ 1-2ms ในการส่งผ่านเครือข่าย)
+│   └── Access-Control-Allow-Origin: * (รองรับคำขอต่างโดเมน)
+│
+├── 🔀 Router & Endpoint Handlers
+│   │
+│   ├── 📥 GET /api/photos
+│   │   ├── Query Parameters: limit (500), cursor (Unix Timestamp)
+│   │   ├── Step 1: ตรวจสอบ In-Memory LRU API Cache (หากมี จะส่งคืนใน 0ms)
+│   │   ├── Step 2: อ่านข้อมูลจากฐานข้อมูล (PostgreSQL 16 หรือ SQLite WAL)
+│   │   └── Response Payload JSON:
+│   │       {
+│   │         "photos": [
+│   │           {
+│   │             "id": "p-101",
+│   │             "title": "IMG_01.jpg",
+│   │             "aspect_ratio": 1.5,
+│   │             "micro_url": "/data/micro/p-101.jpg",
+│   │             "original_url": "/data/original/p-101.jpg",
+│   │             "created_at": 1754060400
+│   │           }
+│   │         ],
+│   │         "count": 500,
+│   │         "next_cursor": 1754060400
+│   │       }
+│   │
+│   ├── ⚡ POST /api/upload
+│   │   ├── Form Input: Multipart Form File Array (`photos`)
+│   │   ├── Buffer Memory: ParseMultipartForm (500MB)
+│   │   ├── Concurrency: สปอน Go 32-Goroutine Workers พร้อมกัน
+│   │   ├── Processing Pipeline: 
+│   │   │   1. เซฟภาพลงดิสก์ /data/original/
+│   │   │   2. ย่อภาพลงดิสก์ /data/micro/
+│   │   │   3. สกัดพิกัด Thumbhash Blur Hash
+│   │   │   4. บันทึกข้อมูลลงใน PostgreSQL / SQLite Transaction
+│   │   └── Response Payload JSON:
+│   │       { "success": true, "uploaded": 10, "total": 10 }
+│   │
+│   ├── 📊 GET /api/stats
+│   │   ├── System Collector: อ่านหน่วยความจำ RAM และสถานะการทำงานของ Go Runtime
+│   │   └── Response Payload JSON:
+│   │       {
+│   │         "alloc_ram_mb": "2.23 MB",
+│   │         "engine": "Go 1.26 + SQLite WAL + Web Worker Virtualization",
+│   │         "status": "online",
+│   │         "total_photos": 6727,
+│   │         "uptime_sec": 3520
+│   │       }
+│   │
+│   └── 📁 GET /data/micro/* & /data/original/*
+│       ├── Caching Header: Cache-Control: max-age=31536000 (1 ปี)
+│       └── Execution: Direct Static File Stream
 ```
 
 ---

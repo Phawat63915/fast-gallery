@@ -53,8 +53,8 @@ func InitDB(dataDir string) (*DB, error) {
 		log.Printf("Connecting to PostgreSQL database...")
 		conn, err = sql.Open("postgres", dbURL)
 		if err == nil {
-			conn.SetMaxOpenConns(25)
-			conn.SetMaxIdleConns(10)
+			conn.SetMaxOpenConns(50)
+			conn.SetMaxIdleConns(25)
 			conn.SetConnMaxLifetime(5 * time.Minute)
 			err = conn.Ping()
 		}
@@ -124,6 +124,7 @@ func (db *DB) migrateSchema() error {
 			focal_length TEXT
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_photos_created_id ON photos (created_at DESC, id);
 		`
 	} else {
 		schema = `

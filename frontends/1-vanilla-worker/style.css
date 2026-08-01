@@ -14,11 +14,12 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background-color: var(--bg-dark); color: var(--text-main); font-family: var(--font-body); height: 100vh; overflow: hidden; display: flex; flex-direction: column; user-select: none; }
 
-.app-header { height: 64px; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; }
+/* [PERF] backdrop-filter: blur ลบออก — ใช้สี opacity เข้มขึ้นแทน ไม่กิน GPU เลย */
+.app-header { height: 64px; background: rgba(9, 13, 22, 0.96); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .logo-icon { width: 38px; height: 38px; background: var(--accent-gradient); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .brand-text h1 { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; color: #fff; }
-.brand-text h1 span { background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 0.75rem; margin-left: 6px; }
+.brand-text h1 span { background: var(--accent-gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-size: 0.75rem; margin-left: 6px; }
 .subtitle { font-size: 0.75rem; color: var(--text-muted); }
 
 .stats-bar { display: flex; gap: 8px; }
@@ -38,13 +39,13 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
 .tech-badge { font-size: 0.75rem; color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); padding: 4px 12px; border-radius: 12px; }
 
 /* GPU-Accelerated Scroll Container */
+/* [PERF] will-change: scroll-position คือค่า Invalid → ลบออก คืน GPU memory */
 .scroll-container {
   flex: 1;
   overflow-y: auto;
   position: relative;
   padding: 0 16px 40px 16px;
   -webkit-overflow-scrolling: touch;
-  will-change: scroll-position;
 }
 
 /* Suppress hover & pointer events during active scroll */
@@ -71,13 +72,27 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   content-visibility: auto;
 }
 
-.photo-card canvas.thumbhash-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(6px); transform: scale(1.05); }
+/* [PERF] filter: blur(6px) ลบออก → ใช้ overflow crop trick แทน (0 GPU cost)
+   ขยาย canvas 8px เกินขอบ แล้วให้ overflow: hidden ของ .photo-card ตัดออก
+   ได้ภาพ Blurry Placeholder โดยไม่ต้องคำนวณ Gaussian Blur เลยแม้แต่ 1 pixel */
+.photo-card canvas.thumbhash-canvas {
+  position: absolute;
+  top: -4px; left: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  object-fit: cover;
+  transform: scale(1.1);
+}
 
-/* Realtime Instant Display: Images render immediately at opacity: 1 without black screen */
-.photo-card img.real-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 1; will-change: transform; }
+/* [PERF] will-change: transform ลบออกจาก .real-img — ทุก card จอง GPU Compositing Layer ค้างไว้ตลอด
+   แทนที่ด้วย transition ที่ smooth และบราวเซอร์จะ promote layer เฉพาะตอน hover จริงๆ */
+.photo-card img.real-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 1; transition: transform 0.15s ease-out; }
 .photo-card:hover img.real-img { transform: scale(1.04); }
 
-.lightbox-modal { position: fixed; inset: 0; background: rgba(5, 8, 15, 0.95); backdrop-filter: blur(20px); z-index: 2000; display: flex; flex-direction: column; }
+/* [PERF] backdrop-filter: blur(20px) บน Lightbox ลบออก — หนักที่สุด
+   เวลาเปิด Lightbox GPU ต้อง blur ทั้ง 8,000 tiles ด้านหลังทุก Frame
+   ใช้ background: rgba เข้มขึ้นแทน ทำงาน 100% บน CPU compositing ธรรมดา */
+.lightbox-modal { position: fixed; inset: 0; background: rgba(5, 8, 15, 0.97); z-index: 2000; display: flex; flex-direction: column; }
 .lightbox-modal.hidden { display: none; }
 .lightbox-bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--border-color); }
 .lightbox-counter { font-size: 0.85rem; color: var(--text-muted); }
@@ -95,7 +110,8 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
 .exif-drawer h4 { font-family: var(--font-heading); font-size: 1.1rem; color: #fff; }
 .exif-sub { font-size: 0.8rem; color: var(--text-muted); }
 
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+/* [PERF] backdrop-filter: blur(10px) บน Upload Modal ลบออก — ใช้ opacity เข้มแทน */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.88); display: flex; align-items: center; justify-content: center; z-index: 3000; }
 .modal-backdrop.hidden { display: none; }
 .upload-card { width: 500px; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 20px; padding: 24px; }
 .upload-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }

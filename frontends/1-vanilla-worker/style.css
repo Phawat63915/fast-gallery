@@ -83,10 +83,10 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
 .lightbox-counter { font-size: 0.85rem; color: var(--text-muted); }
 .icon-btn { width: 36px; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-color); color: #fff; cursor: pointer; }
 
-.lightbox-body { flex: 1; display: flex; position: relative; overflow: hidden; }
-.lightbox-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-.lightbox-img-wrapper { max-width: 90%; max-height: 90%; display: flex; align-items: center; justify-content: center; }
-.lightbox-img-wrapper img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; }
+.lightbox-body { flex: 1; display: flex; position: relative; overflow: hidden; width: 100%; height: 100%; }
+.lightbox-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; height: 100%; padding: 0; margin: 0; }
+.lightbox-img-wrapper { width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0; }
+.lightbox-img-wrapper img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0 !important; border: none !important; box-shadow: none !important; outline: none !important; }
 .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17, 24, 39, 0.7); border: 1px solid var(--border-color); color: #fff; cursor: pointer; z-index: 2100; display: flex; align-items: center; justify-content: center; }
 .nav-prev { left: 24px; } .nav-next { right: 24px; }
 

@@ -12,7 +12,7 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [ramAlloc, setRamAlloc] = useState('-- MB');
   const fileInputRef = useRef(null);
-  const wheelThrottle = useRef(0);
+  const lastWheelTime = useRef(0);
 
   useEffect(() => {
     fetchPhotos();
@@ -34,15 +34,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [isLightboxOpen, isUploadOpen, currentPhotoIndex, photos]);
 
-  function predictAndPrefetch(index, direction = 1, windowAhead = 5, windowBehind = 2) {
-    if (!photos || photos.length === 0) return;
-    for (let step = 1; step <= windowAhead; step++) {
-      const targetIdx = (index + (step * direction) + photos.length) % photos.length;
-      prefetchSingleUrl(photos[targetIdx]);
-    }
-    for (let step = 1; step <= windowBehind; step++) {
-      const targetIdx = (index - (step * direction) + photos.length) % photos.length;
-      prefetchSingleUrl(photos[targetIdx]);
+  function scheduleIdlePrefetch(index, direction = 1) {
+    const runPrefetch = () => {
+      if (!photos || photos.length === 0) return;
+      for (let step = 1; step <= 5; step++) {
+        const targetIdx = (index + (step * direction) + photos.length) % photos.length;
+        prefetchSingleUrl(photos[targetIdx]);
+      }
+      for (let step = 1; step <= 2; step++) {
+        const targetIdx = (index - (step * direction) + photos.length) % photos.length;
+        prefetchSingleUrl(photos[targetIdx]);
+      }
+    };
+
+    if (typeof window !== 'undefined' && window.requestIdleCallback) {
+      window.requestIdleCallback(runPrefetch);
+    } else {
+      setTimeout(runPrefetch, 0);
     }
   }
 
@@ -110,7 +118,7 @@ export default function App() {
   function openLightbox(index, direction = 1) {
     setCurrentPhotoIndex(index);
     setIsLightboxOpen(true);
-    predictAndPrefetch(index, direction, 5, 2);
+    scheduleIdlePrefetch(index, direction);
   }
 
   function closeLightbox() {
@@ -130,8 +138,8 @@ export default function App() {
     if (!isLightboxOpen) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - wheelThrottle.current < 40) return;
-    wheelThrottle.current = now;
+    if (now - lastWheelTime.current < 10) return;
+    lastWheelTime.current = now;
 
     const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
     navigate(dir);
@@ -155,7 +163,6 @@ export default function App() {
           flex-wrap: wrap;
           gap: 3px;
           -webkit-overflow-scrolling: touch;
-          scroll-behavior: smooth;
           will-change: scroll-position;
         }
 
@@ -177,7 +184,7 @@ export default function App() {
         .lightbox { position: fixed; inset: 0; background: rgba(4,7,13,0.96); backdrop-filter: blur(24px); z-index: 2000; display: flex; flex-direction: column; }
         .lightbox-bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .lightbox-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-        .lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); transition: opacity 0.15s ease-out; }
+        .lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); }
         .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
         .prev { left: 24px; } .next { right: 24px; }
         .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }

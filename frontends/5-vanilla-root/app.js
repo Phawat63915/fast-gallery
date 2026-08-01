@@ -2,7 +2,7 @@
   'use strict';
   const state = {
     photos: [], layoutRows: [], totalGridHeight: 0, nextCursor: 0, hasMore: true, isLoading: false,
-    currentPhotoIndex: -1, wheelThrottleTimer: 0,
+    currentPhotoIndex: -1, lastWheelTime: 0,
     fps: 60, frameCount: 0, lastFpsTime: performance.now(), activeNodes: new Map(),
     preloadedCache: new Set(), preloadedOrder: [],
   };
@@ -154,16 +154,20 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  function predictAndPrefetch(currentIndex, direction = 1, windowAhead = 5, windowBehind = 2) {
-    if (!state.photos || state.photos.length === 0) return;
-    for (let step = 1; step <= windowAhead; step++) {
-      const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
-      prefetchSingleUrl(state.photos[targetIdx]);
-    }
-    for (let step = 1; step <= windowBehind; step++) {
-      const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
-      prefetchSingleUrl(state.photos[targetIdx]);
-    }
+  function scheduleIdlePrefetch(currentIndex, direction = 1) {
+    const runPrefetch = () => {
+      if (!state.photos || state.photos.length === 0) return;
+      for (let step = 1; step <= 5; step++) {
+        const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
+        prefetchSingleUrl(state.photos[targetIdx]);
+      }
+      for (let step = 1; step <= 2; step++) {
+        const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
+        prefetchSingleUrl(state.photos[targetIdx]);
+      }
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(runPrefetch);
+    else setTimeout(runPrefetch, 0);
   }
 
   function prefetchSingleUrl(photo) {
@@ -195,7 +199,7 @@
     if (exifTitle) exifTitle.textContent = photo.title;
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     lightboxModal.classList.remove('hidden');
-    predictAndPrefetch(index, direction, 5, 2);
+    scheduleIdlePrefetch(index, direction);
   }
 
   function closeLightbox() { lightboxModal.classList.add('hidden'); lightboxImg.src = ''; state.currentPhotoIndex = -1; }
@@ -211,8 +215,8 @@
     if (lightboxModal.classList.contains('hidden')) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 40) return;
-    state.wheelThrottleTimer = now;
+    if (now - state.lastWheelTime < 10) return;
+    state.lastWheelTime = now;
     const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
     navigate(dir);
   }

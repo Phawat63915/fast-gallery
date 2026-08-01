@@ -65,7 +65,7 @@ const API_BASE = 'http://localhost:8880';
 const preloadedCache = new Set();
 const preloadedOrder = [];
 const MAX_PRELOAD_CACHE = 50;
-let wheelThrottleTimer = 0;
+let lastWheelTime = 0;
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
@@ -95,15 +95,23 @@ async function fetchStats() {
   } catch (e) {}
 }
 
-function predictAndPrefetch(index, direction = 1, windowAhead = 5, windowBehind = 2) {
-  if (!photos.value || photos.value.length === 0) return;
-  for (let step = 1; step <= windowAhead; step++) {
-    const targetIdx = (index + (step * direction) + photos.value.length) % photos.value.length;
-    prefetchSingleUrl(photos.value[targetIdx]);
-  }
-  for (let step = 1; step <= windowBehind; step++) {
-    const targetIdx = (index - (step * direction) + photos.value.length) % photos.value.length;
-    prefetchSingleUrl(photos.value[targetIdx]);
+function scheduleIdlePrefetch(index, direction = 1) {
+  const runPrefetch = () => {
+    if (!photos.value || photos.value.length === 0) return;
+    for (let step = 1; step <= 5; step++) {
+      const targetIdx = (index + (step * direction) + photos.value.length) % photos.value.length;
+      prefetchSingleUrl(photos.value[targetIdx]);
+    }
+    for (let step = 1; step <= 2; step++) {
+      const targetIdx = (index - (step * direction) + photos.value.length) % photos.value.length;
+      prefetchSingleUrl(photos.value[targetIdx]);
+    }
+  };
+
+  if (typeof window !== 'undefined' && window.requestIdleCallback) {
+    window.requestIdleCallback(runPrefetch);
+  } else {
+    setTimeout(runPrefetch, 0);
   }
 }
 
@@ -154,7 +162,7 @@ async function handleFileUpload(e) {
 function openLightbox(index, direction = 1) {
   currentPhotoIndex.value = index;
   isLightboxOpen.value = true;
-  predictAndPrefetch(index, direction, 5, 2);
+  scheduleIdlePrefetch(index, direction);
 }
 
 function closeLightbox() {
@@ -173,8 +181,8 @@ function navigate(dir) {
 function handleWheel(e) {
   if (!isLightboxOpen.value) return;
   const now = Date.now();
-  if (now - wheelThrottleTimer < 40) return;
-  wheelThrottleTimer = now;
+  if (now - lastWheelTime < 10) return;
+  lastWheelTime = now;
   const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
   navigate(dir);
 }
@@ -206,7 +214,6 @@ function handleKeydown(e) {
   flex-wrap: wrap;
   gap: 3px;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
   will-change: scroll-position;
 }
 
@@ -228,7 +235,7 @@ function handleKeydown(e) {
 .lightbox { position: fixed; inset: 0; background: rgba(4,7,13,0.96); backdrop-filter: blur(24px); z-index: 2000; display: flex; flex-direction: column; }
 .lightbox-bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .lightbox-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-.lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); transition: opacity 0.15s ease-out; }
+.lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); }
 .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
 .prev { left: 24px; } .next { right: 24px; }
 .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }

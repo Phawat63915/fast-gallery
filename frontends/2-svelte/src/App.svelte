@@ -35,21 +35,29 @@
     } catch (e) {}
   }
 
-  function prefetchNeighbors(index, windowSize = 4) {
+  function predictAndPrefetch(index, direction = 1, windowAhead = 5, windowBehind = 2) {
     if (!photos || photos.length === 0) return;
-    for (let offset = -windowSize; offset <= windowSize; offset++) {
-      if (offset === 0) continue;
-      const targetIdx = (index + offset + photos.length) % photos.length;
-      const photo = photos[targetIdx];
-      if (!photo) continue;
-      const url = (photo.original_url || photo.micro_url).startsWith('http')
-        ? (photo.original_url || photo.micro_url)
-        : `${API_BASE}${photo.original_url || photo.micro_url}`;
-      if (!preloadedCache.has(url)) {
-        preloadedCache.add(url);
-        const img = new Image();
-        img.src = url;
-      }
+
+    for (let step = 1; step <= windowAhead; step++) {
+      const targetIdx = (index + (step * direction) + photos.length) % photos.length;
+      prefetchSingleUrl(photos[targetIdx]);
+    }
+
+    for (let step = 1; step <= windowBehind; step++) {
+      const targetIdx = (index - (step * direction) + photos.length) % photos.length;
+      prefetchSingleUrl(photos[targetIdx]);
+    }
+  }
+
+  function prefetchSingleUrl(photo) {
+    if (!photo) return;
+    const url = (photo.original_url || photo.micro_url).startsWith('http')
+      ? (photo.original_url || photo.micro_url)
+      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    if (!preloadedCache.has(url)) {
+      preloadedCache.add(url);
+      const img = new Image();
+      img.src = url;
     }
   }
 
@@ -76,10 +84,10 @@
     }
   }
 
-  function openLightbox(index) {
+  function openLightbox(index, direction = 1) {
     currentPhotoIndex = index;
     isLightboxOpen = true;
-    prefetchNeighbors(index, 4);
+    predictAndPrefetch(index, direction, 5, 2);
   }
 
   function closeLightbox() {
@@ -92,18 +100,18 @@
     let next = currentPhotoIndex + dir;
     if (next < 0) next = photos.length - 1;
     if (next >= photos.length) next = 0;
-    openLightbox(next);
+    openLightbox(next, dir);
   }
 
   function handleWheel(e) {
     if (!isLightboxOpen) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - wheelThrottleTimer < 40) return; // 40ms 120Hz smooth wheel throttle
+    if (now - wheelThrottleTimer < 40) return;
     wheelThrottleTimer = now;
 
-    if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
-    else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
+    const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
+    navigate(dir);
   }
 
   function handleKeydown(e) {
@@ -127,7 +135,6 @@
   .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
   .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
   
-  /* GPU Accelerated Hardware Scrolling Container */
   .grid-container {
     height: calc(100vh - 60px);
     overflow-y: auto;

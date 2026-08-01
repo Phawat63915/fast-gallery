@@ -153,27 +153,31 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  function prefetchNeighborImages(currentIndex, windowSize = 3) {
+  function predictAndPrefetch(currentIndex, direction = 1, windowAhead = 5, windowBehind = 2) {
     if (!state.photos || state.photos.length === 0) return;
-    for (let offset = -windowSize; offset <= windowSize; offset++) {
-      if (offset === 0) continue;
-      const targetIdx = (currentIndex + offset + state.photos.length) % state.photos.length;
-      const photo = state.photos[targetIdx];
-      if (!photo) continue;
-
-      const url = (photo.original_url || photo.micro_url).startsWith('http')
-        ? (photo.original_url || photo.micro_url)
-        : `${API_BASE}${photo.original_url || photo.micro_url}`;
-
-      if (!state.preloadedCache.has(url)) {
-        state.preloadedCache.add(url);
-        const img = new Image();
-        img.src = url;
-      }
+    for (let step = 1; step <= windowAhead; step++) {
+      const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
+      prefetchSingleUrl(state.photos[targetIdx]);
+    }
+    for (let step = 1; step <= windowBehind; step++) {
+      const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
+      prefetchSingleUrl(state.photos[targetIdx]);
     }
   }
 
-  function openLightbox(index) {
+  function prefetchSingleUrl(photo) {
+    if (!photo) return;
+    const url = (photo.original_url || photo.micro_url).startsWith('http')
+      ? (photo.original_url || photo.micro_url)
+      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    if (!state.preloadedCache.has(url)) {
+      state.preloadedCache.add(url);
+      const img = new Image();
+      img.src = url;
+    }
+  }
+
+  function openLightbox(index, direction = 1) {
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
     const photo = state.photos[index];
@@ -182,7 +186,7 @@
     if (exifTitle) exifTitle.textContent = photo.title;
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     lightboxModal.classList.remove('hidden');
-    prefetchNeighborImages(index, 3);
+    predictAndPrefetch(index, direction, 5, 2);
   }
 
   function closeLightbox() { lightboxModal.classList.add('hidden'); lightboxImg.src = ''; state.currentPhotoIndex = -1; }
@@ -191,17 +195,17 @@
     let next = state.currentPhotoIndex + dir;
     if (next < 0) next = state.photos.length - 1;
     if (next >= state.photos.length) next = 0;
-    openLightbox(next);
+    openLightbox(next, dir);
   }
 
   function handleLightboxWheel(e) {
     if (lightboxModal.classList.contains('hidden')) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 40) return; // 40ms 120Hz smooth wheel throttle
+    if (now - state.wheelThrottleTimer < 40) return;
     state.wheelThrottleTimer = now;
-    if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
-    else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
+    const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
+    navigate(dir);
   }
 
   function setupEventListeners() {

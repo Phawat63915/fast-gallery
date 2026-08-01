@@ -1,5 +1,5 @@
 // FastGallery Stack 1: Vanilla JS + Web Worker Engine
-// Features: Proactive Neighbor Image Prefetching (0ms Lightbox Swap), DOM Node Recycling, Thumbhash Canvas
+// Features: Predictive Directional Image Prefetching (5-Step Ahead Queue), DOM Node Recycling, Thumbhash Canvas
 
 (function () {
   'use strict';
@@ -14,6 +14,7 @@
     
     currentPhotoIndex: -1,
     wheelThrottleTimer: 0,
+    lastDirection: 1, // 1 = forward, -1 = backward
     
     fps: 60,
     frameCount: 0,
@@ -35,8 +36,6 @@
   const btnUploadTrigger = document.getElementById('btn-upload-trigger');
   const uploadModal = document.getElementById('upload-modal');
   const btnCloseUpload = document.getElementById('btn-close-upload');
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('file-input');
 
   const lightboxModal = document.getElementById('lightbox-modal');
   const lightboxImg = document.getElementById('lightbox-img');
@@ -214,30 +213,40 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  // Proactive Neighbor Image Prefetch Engine (0ms Swap)
-  function prefetchNeighborImages(currentIndex, windowSize = 3) {
+  // Predictive Directional Prefetch Engine (5 Steps Ahead)
+  function predictAndPrefetch(currentIndex, direction = 1, windowAhead = 5, windowBehind = 2) {
     if (!state.photos || state.photos.length === 0) return;
-    for (let offset = -windowSize; offset <= windowSize; offset++) {
-      if (offset === 0) continue;
-      const targetIdx = (currentIndex + offset + state.photos.length) % state.photos.length;
-      const photo = state.photos[targetIdx];
-      if (!photo) continue;
 
-      const url = (photo.original_url || photo.micro_url).startsWith('http')
-        ? (photo.original_url || photo.micro_url)
-        : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    // High Priority: Prefetch 5 images in the movement direction
+    for (let step = 1; step <= windowAhead; step++) {
+      const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
+      prefetchSingleUrl(state.photos[targetIdx]);
+    }
 
-      if (!state.preloadedCache.has(url)) {
-        state.preloadedCache.add(url);
-        const img = new Image();
-        img.src = url;
-      }
+    // Low Priority: Prefetch 2 images behind
+    for (let step = 1; step <= windowBehind; step++) {
+      const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
+      prefetchSingleUrl(state.photos[targetIdx]);
     }
   }
 
-  function openLightbox(index) {
+  function prefetchSingleUrl(photo) {
+    if (!photo) return;
+    const url = (photo.original_url || photo.micro_url).startsWith('http')
+      ? (photo.original_url || photo.micro_url)
+      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+
+    if (!state.preloadedCache.has(url)) {
+      state.preloadedCache.add(url);
+      const img = new Image();
+      img.src = url;
+    }
+  }
+
+  function openLightbox(index, direction = 1) {
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
+    state.lastDirection = direction;
 
     const photo = state.photos[index];
     const targetURL = (photo.original_url || photo.micro_url).startsWith('http')
@@ -256,8 +265,8 @@
 
     lightboxModal.classList.remove('hidden');
 
-    // Trigger prefetch for next 3 & prev 3 photos
-    prefetchNeighborImages(index, 3);
+    // Trigger predictive prefetching 5 steps ahead in movement direction
+    predictAndPrefetch(index, direction, 5, 2);
   }
 
   function closeLightbox() {
@@ -273,7 +282,7 @@
     if (next < 0) next = state.photos.length - 1;
     if (next >= state.photos.length) next = 0;
 
-    openLightbox(next);
+    openLightbox(next, dir);
   }
 
   function handleLightboxWheel(e) {
@@ -281,14 +290,11 @@
 
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 40) return; // Ultra-smooth 40ms wheel throttle
+    if (now - state.wheelThrottleTimer < 40) return;
     state.wheelThrottleTimer = now;
 
-    if (e.deltaY > 0 || e.deltaX > 0) {
-      navigateLightbox(1);
-    } else if (e.deltaY < 0 || e.deltaX < 0) {
-      navigateLightbox(-1);
-    }
+    const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
+    navigateLightbox(dir);
   }
 
   function setupEventListeners() {

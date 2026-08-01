@@ -93,7 +93,7 @@ async function fetchStats() {
   } catch (e) {}
 }
 
-function prefetchNeighbors(index, windowSize = 3) {
+function prefetchNeighbors(index, windowSize = 4) {
   if (!photos.value || photos.value.length === 0) return;
   for (let offset = -windowSize; offset <= windowSize; offset++) {
     if (offset === 0) continue;
@@ -138,7 +138,7 @@ async function handleFileUpload(e) {
 function openLightbox(index) {
   currentPhotoIndex.value = index;
   isLightboxOpen.value = true;
-  prefetchNeighbors(index, 3);
+  prefetchNeighbors(index, 4);
 }
 
 function closeLightbox() {
@@ -157,7 +157,7 @@ function navigate(dir) {
 function handleWheel(e) {
   if (!isLightboxOpen.value) return;
   const now = Date.now();
-  if (now - wheelThrottleTimer < 100) return;
+  if (now - wheelThrottleTimer < 40) return; // 40ms 120Hz smooth wheel throttle
   wheelThrottleTimer = now;
   if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
   else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
@@ -177,18 +177,43 @@ function handleKeydown(e) {
 <style scoped>
 :global(*) { box-sizing: border-box; margin: 0; padding: 0; }
 :global(body) { background: #0b0f19; color: #f8fafc; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; user-select: none; }
-.header { height: 60px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+.header { height: 60px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; }
 .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-.grid-container { height: calc(100vh - 60px); overflow-y: auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 3px; }
-.tile { height: 220px; flex-grow: 1; position: relative; overflow: hidden; cursor: pointer; border-radius: 2px; background: #0f172a; }
-.tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+
+/* GPU Accelerated Hardware Scrolling Container */
+.grid-container {
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  will-change: scroll-position;
+}
+
+.tile {
+  height: 220px;
+  flex-grow: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 2px;
+  background: #0f172a;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
 .tile:hover img { transform: scale(1.04); }
 .lightbox { position: fixed; inset: 0; background: rgba(4,7,13,0.96); backdrop-filter: blur(24px); z-index: 2000; display: flex; flex-direction: column; }
 .lightbox-bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .lightbox-stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
-.lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); }
+.lightbox-stage img { max-width: 92%; max-height: 92%; object-fit: contain; border-radius: 4px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); transition: opacity 0.15s ease-out; }
 .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
 .prev { left: 24px; } .next { right: 24px; }
 .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }

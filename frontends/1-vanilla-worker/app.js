@@ -281,7 +281,7 @@
 
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 100) return;
+    if (now - state.wheelThrottleTimer < 40) return; // Ultra-smooth 40ms wheel throttle
     state.wheelThrottleTimer = now;
 
     if (e.deltaY > 0 || e.deltaX > 0) {
@@ -294,7 +294,7 @@
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
       requestAnimationFrame(renderVirtualGrid);
-    });
+    }, { passive: true });
 
     window.addEventListener('resize', computeLayout);
 

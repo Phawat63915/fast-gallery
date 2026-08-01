@@ -198,14 +198,14 @@
     if (lightboxModal.classList.contains('hidden')) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 100) return;
+    if (now - state.wheelThrottleTimer < 40) return; // 40ms 120Hz smooth wheel throttle
     state.wheelThrottleTimer = now;
     if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
     else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
   }
 
   function setupEventListeners() {
-    scrollContainer.addEventListener('scroll', () => requestAnimationFrame(renderVirtualGrid));
+    scrollContainer.addEventListener('scroll', () => requestAnimationFrame(renderVirtualGrid), { passive: true });
     window.addEventListener('resize', computeLayout);
     lightboxModal.addEventListener('wheel', handleLightboxWheel, { passive: false });
     btnPrevPhoto.addEventListener('click', (e) => { e.stopPropagation(); navigate(-1); });

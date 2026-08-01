@@ -158,8 +158,8 @@
     const photo = state.photos[index];
     lightboxImg.src = (photo.original_url || photo.micro_url).startsWith('http') ? (photo.original_url || photo.micro_url) : `${API_BASE}${photo.original_url || photo.micro_url}`;
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
-    exifTitle.textContent = photo.title;
-    exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
+    if (exifTitle) exifTitle.textContent = photo.title;
+    if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     lightboxModal.classList.remove('hidden');
   }
 
@@ -176,7 +176,7 @@
     if (lightboxModal.classList.contains('hidden')) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 300) return;
+    if (now - state.wheelThrottleTimer < 100) return; // 100ms ultra-fast throttle
     state.wheelThrottleTimer = now;
     if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
     else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
@@ -191,8 +191,8 @@
     btnCloseLightbox.addEventListener('click', closeLightbox);
     document.addEventListener('keydown', (e) => {
       if (!lightboxModal.classList.contains('hidden')) {
-        if (e.key === 'ArrowLeft') navigate(-1);
-        else if (e.key === 'ArrowRight') navigate(1);
+        if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
+        else if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
         else if (e.key === 'Escape') closeLightbox();
       }
     });

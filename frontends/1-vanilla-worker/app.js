@@ -1,9 +1,25 @@
+// FastGallery Stack 1: Vanilla JS + Web Worker Engine
+// Features: Ultra-Fast Lightbox Wheel Scroll Navigation (100ms throttle), DOM Node Recycling, Thumbhash Canvas
+
 (function () {
   'use strict';
+
   const state = {
-    photos: [], layoutRows: [], totalGridHeight: 0, nextCursor: 0, hasMore: true, isLoading: false,
-    currentPhotoIndex: -1, isZoomed: false, isExifOpen: true, wheelThrottleTimer: 0,
-    fps: 60, frameCount: 0, lastFpsTime: performance.now(), activeNodes: new Map(),
+    photos: [],
+    layoutRows: [],
+    totalGridHeight: 0,
+    nextCursor: 0,
+    hasMore: true,
+    isLoading: false,
+    
+    currentPhotoIndex: -1,
+    wheelThrottleTimer: 0,
+    
+    fps: 60,
+    frameCount: 0,
+    lastFpsTime: performance.now(),
+    
+    activeNodes: new Map(),
   };
 
   const API_BASE = 'http://localhost:8880';
@@ -22,7 +38,6 @@
   const fileInput = document.getElementById('file-input');
 
   const lightboxModal = document.getElementById('lightbox-modal');
-  const lightboxImgWrapper = document.getElementById('lightbox-img-wrapper');
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxCounter = document.getElementById('lightbox-counter');
   const btnCloseLightbox = document.getElementById('btn-close-lightbox');
@@ -41,10 +56,12 @@
   const exifRes = document.getElementById('exif-res');
 
   let layoutWorker = new Worker('layout-worker.js');
+
   layoutWorker.onmessage = function (e) {
     const { rows, totalHeight } = e.data;
     state.layoutRows = rows;
     state.totalGridHeight = totalHeight;
+
     virtualGrid.style.height = `${totalHeight}px`;
     renderVirtualGrid();
   };
@@ -59,18 +76,25 @@
   async function fetchPhotos(isAppend = false) {
     if (state.isLoading || (!state.hasMore && isAppend)) return;
     state.isLoading = true;
+
     try {
       const url = `${API_BASE}/api/photos?limit=200${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
       const res = await fetch(url);
       const data = await res.json();
+
       if (data.photos && data.photos.length > 0) {
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
         state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
         computeLayout();
-      } else { state.hasMore = false; }
-    } catch (err) { console.error('Failed to fetch photos:', err); }
-    finally { state.isLoading = false; }
+      } else {
+        state.hasMore = false;
+      }
+    } catch (err) {
+      console.error('Failed to fetch photos:', err);
+    } finally {
+      state.isLoading = false;
+    }
   }
 
   async function fetchServerStats() {
@@ -83,32 +107,47 @@
 
   function computeLayout() {
     const containerWidth = scrollContainer.clientWidth - 32;
-    layoutWorker.postMessage({ photos: state.photos, containerWidth: Math.max(320, containerWidth), targetRowHeight: 220, gap: 3 });
+    layoutWorker.postMessage({
+      photos: state.photos,
+      containerWidth: Math.max(320, containerWidth),
+      targetRowHeight: 220,
+      gap: 3,
+    });
   }
 
   function renderVirtualGrid() {
     if (!state.layoutRows || state.layoutRows.length === 0) return;
+
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = scrollContainer.clientHeight;
+
     const buffer = 400;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
+
     const visibleItems = [];
 
     for (let r = 0; r < state.layoutRows.length; r++) {
       const row = state.layoutRows[r];
       if (row.y + row.height >= startY && row.y <= endY) {
-        for (let i = 0; i < row.items.length; i++) visibleItems.push(row.items[i]);
+        for (let i = 0; i < row.items.length; i++) {
+          visibleItems.push(row.items[i]);
+        }
       }
     }
 
     const currentVisibleKeys = new Set(visibleItems.map(item => item.photo.id));
+
     for (let [id, node] of state.activeNodes.entries()) {
-      if (!currentVisibleKeys.has(id)) { node.remove(); state.activeNodes.delete(id); }
+      if (!currentVisibleKeys.has(id)) {
+        node.remove();
+        state.activeNodes.delete(id);
+      }
     }
 
     for (let item of visibleItems) {
       const { photo, x, y, width, height } = item;
+
       if (state.activeNodes.has(photo.id)) {
         const node = state.activeNodes.get(photo.id);
         node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -119,12 +158,17 @@
         state.activeNodes.set(photo.id, card);
       }
     }
+
     statDom.textContent = state.activeNodes.size;
-    if (scrollTop + viewportHeight >= state.totalGridHeight - 800 && !state.isLoading && state.hasMore) fetchPhotos(true);
+
+    if (scrollTop + viewportHeight >= state.totalGridHeight - 800 && !state.isLoading && state.hasMore) {
+      fetchPhotos(true);
+    }
   }
 
   function createPhotoCard(item) {
     const { photo, width, height } = item;
+
     const card = document.createElement('div');
     card.className = 'photo-card';
     card.style.width = `${width}px`;
@@ -139,79 +183,146 @@
     img.className = 'real-img';
     img.loading = 'lazy';
     img.src = photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`;
-    img.onload = function () { img.classList.add('loaded'); };
+
+    img.onload = function () {
+      img.classList.add('loaded');
+    };
     card.appendChild(img);
 
     card.addEventListener('click', () => {
       const idx = state.photos.findIndex(p => p.id === photo.id);
       openLightbox(idx >= 0 ? idx : 0);
     });
+
     return card;
   }
 
   function drawThumbhashPlaceholder(canvas, thumbhashStr) {
-    canvas.width = 32; canvas.height = 32;
+    canvas.width = 32;
+    canvas.height = 32;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
     const grad = ctx.createLinearGradient(0, 0, 32, 32);
     let hashNum = 0;
-    for (let i = 0; i < (thumbhashStr || '').length; i++) hashNum = (hashNum << 5) - hashNum + thumbhashStr.charCodeAt(i);
-    grad.addColorStop(0, `hsl(${Math.abs(hashNum) % 360}, 65%, 45%)`);
-    grad.addColorStop(1, `hsl(${Math.abs(hashNum * 7) % 360}, 55%, 25%)`);
+    for (let i = 0; i < (thumbhashStr || '').length; i++) {
+      hashNum = (hashNum << 5) - hashNum + thumbhashStr.charCodeAt(i);
+    }
+
+    const c1 = `hsl(${Math.abs(hashNum) % 360}, 65%, 45%)`;
+    const c2 = `hsl(${Math.abs(hashNum * 7) % 360}, 55%, 25%)`;
+
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 32, 32);
   }
 
+  // Fast, instant Lightbox viewer
   function openLightbox(index) {
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
+
     const photo = state.photos[index];
-    lightboxImg.src = (photo.original_url || photo.micro_url).startsWith('http') ? (photo.original_url || photo.micro_url) : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    lightboxImg.src = (photo.original_url || photo.micro_url).startsWith('http')
+      ? (photo.original_url || photo.micro_url)
+      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
-    exifTitle.textContent = photo.title;
-    exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
-    exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`;
-    exifFocal.textContent = photo.focal_length || '35mm';
-    exifIso.textContent = photo.iso || 100;
-    exifRes.textContent = `${photo.width} x ${photo.height}`;
+
+    if (exifTitle) exifTitle.textContent = photo.title;
+    if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
+    if (exifCamera) exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`;
+    if (exifFocal) exifFocal.textContent = photo.focal_length || '35mm';
+    if (exifIso) exifIso.textContent = photo.iso || 100;
+    if (exifRes) exifRes.textContent = `${photo.width} x ${photo.height}`;
+
     lightboxModal.classList.remove('hidden');
   }
 
-  function closeLightbox() { lightboxModal.classList.add('hidden'); lightboxImg.src = ''; state.currentPhotoIndex = -1; }
-  function navigateLightbox(dir) {
-    if (state.currentPhotoIndex < 0) return;
-    let newIndex = state.currentPhotoIndex + dir;
-    if (newIndex < 0) newIndex = state.photos.length - 1;
-    if (newIndex >= state.photos.length) newIndex = 0;
-    openLightbox(newIndex);
+  function closeLightbox() {
+    lightboxModal.classList.add('hidden');
+    lightboxImg.src = '';
+    state.currentPhotoIndex = -1;
   }
 
+  // Ultra-Fast Navigation with 100ms Throttle
+  function navigateLightbox(dir) {
+    if (state.currentPhotoIndex < 0) return;
+    let next = state.currentPhotoIndex + dir;
+
+    if (next < 0) next = state.photos.length - 1;
+    if (next >= state.photos.length) next = 0;
+
+    openLightbox(next);
+  }
+
+  // Mouse Wheel Scroll Navigation (100ms ultra-smooth throttle matching Svelte)
   function handleLightboxWheel(e) {
     if (lightboxModal.classList.contains('hidden')) return;
+
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 300) return;
+    if (now - state.wheelThrottleTimer < 100) return; // 100ms fast throttle
     state.wheelThrottleTimer = now;
-    if (e.deltaY > 0 || e.deltaX > 0) navigateLightbox(1);
-    else if (e.deltaY < 0 || e.deltaX < 0) navigateLightbox(-1);
+
+    if (e.deltaY > 0 || e.deltaX > 0) {
+      navigateLightbox(1);
+    } else if (e.deltaY < 0 || e.deltaX < 0) {
+      navigateLightbox(-1);
+    }
   }
 
   function setupEventListeners() {
-    scrollContainer.addEventListener('scroll', () => requestAnimationFrame(renderVirtualGrid));
+    scrollContainer.addEventListener('scroll', () => {
+      requestAnimationFrame(renderVirtualGrid);
+    });
+
     window.addEventListener('resize', computeLayout);
+
     lightboxModal.addEventListener('wheel', handleLightboxWheel, { passive: false });
-    btnPrevPhoto.addEventListener('click', (e) => { e.stopPropagation(); navigateLightbox(-1); });
-    btnNextPhoto.addEventListener('click', (e) => { e.stopPropagation(); navigateLightbox(1); });
-    btnCloseLightbox.addEventListener('click', closeLightbox);
+
+    if (btnPrevPhoto) {
+      btnPrevPhoto.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateLightbox(-1);
+      });
+    }
+
+    if (btnNextPhoto) {
+      btnNextPhoto.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateLightbox(1);
+      });
+    }
+
+    if (btnCloseLightbox) {
+      btnCloseLightbox.addEventListener('click', closeLightbox);
+    }
+
     document.addEventListener('keydown', (e) => {
       if (!lightboxModal.classList.contains('hidden')) {
-        if (e.key === 'ArrowLeft' || e.key === 'k') navigateLightbox(-1);
-        else if (e.key === 'ArrowRight' || e.key === 'j') navigateLightbox(1);
-        else if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft' || e.key === 'k') {
+          navigateLightbox(-1);
+        } else if (e.key === 'ArrowRight' || e.key === 'j') {
+          navigateLightbox(1);
+        } else if (e.key === 'Escape') {
+          closeLightbox();
+        }
       }
     });
-    btnUploadTrigger.addEventListener('click', () => uploadModal.classList.remove('hidden'));
-    btnCloseUpload.addEventListener('click', () => uploadModal.classList.add('hidden'));
+
+    if (btnUploadTrigger) {
+      btnUploadTrigger.addEventListener('click', () => {
+        uploadModal.classList.remove('hidden');
+      });
+    }
+
+    if (btnCloseUpload) {
+      btnCloseUpload.addEventListener('click', () => {
+        uploadModal.classList.add('hidden');
+      });
+    }
   }
 
   function startFPSMonitor() {

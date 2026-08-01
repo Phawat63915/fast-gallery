@@ -42,9 +42,12 @@
   const lightboxModal = document.getElementById('lightbox-modal');
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxCounter = document.getElementById('lightbox-counter');
+  const lightboxFilename = document.getElementById('lightbox-filename');
+  const btnExifToggle = document.getElementById('btn-exif-toggle');
   const btnCloseLightbox = document.getElementById('btn-close-lightbox');
   const btnPrevPhoto = document.getElementById('btn-prev-photo');
   const btnNextPhoto = document.getElementById('btn-next-photo');
+  const exifDrawer = document.getElementById('exif-drawer');
   const exifTitle = document.getElementById('exif-title');
   const exifDate = document.getElementById('exif-date');
   const exifCamera = document.getElementById('exif-camera');
@@ -279,9 +282,14 @@
 
     lightboxImg.src = targetURL;
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
+    if (lightboxFilename) lightboxFilename.textContent = photo.title || 'Untitled Image';
 
-    if (exifTitle) exifTitle.textContent = photo.title;
+    if (exifTitle) exifTitle.textContent = photo.title || 'Untitled Image';
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
+    if (exifCamera) exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`.trim();
+    if (exifFocal) exifFocal.textContent = photo.focal_length || '35mm';
+    if (exifIso) exifIso.textContent = photo.iso ? `ISO ${photo.iso}` : 'ISO 100';
+    if (exifRes) exifRes.textContent = `${photo.width || 1920} × ${photo.height || 1080}`;
 
     lightboxModal.classList.remove('hidden');
 
@@ -380,6 +388,16 @@
 
     if (btnCloseLightbox) {
       btnCloseLightbox.addEventListener('click', closeLightbox);
+    }
+
+    if (btnExifToggle) {
+      btnExifToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (exifDrawer) {
+          exifDrawer.style.display = exifDrawer.style.display === 'none' ? 'flex' : 'none';
+          btnExifToggle.classList.toggle('active');
+        }
+      });
     }
 
     document.addEventListener('keydown', (e) => {

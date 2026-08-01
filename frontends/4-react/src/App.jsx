@@ -9,6 +9,7 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(-1);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isExifOpen, setIsExifOpen] = useState(true);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [ramAlloc, setRamAlloc] = useState('-- MB');
   const [scrollTop, setScrollTop] = useState(0);
@@ -347,20 +348,45 @@ export default function App() {
       {isLightboxOpen && currentPhotoIndex >= 0 && (
         <div className="lightbox" onWheel={handleWheel}>
           <div className="lightbox-bar">
-            <span>{currentPhotoIndex + 1} / {photos.length} (Scroll Wheel Supported)</span>
-            <button className="close-btn" onClick={closeLightbox}>&times;</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, flex: 1 }}>
+              <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{currentPhotoIndex + 1} / {photos.length}</span>
+              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '600px' }}>
+                {photos[currentPhotoIndex].title || 'Untitled Image'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button className={`icon-btn ${isExifOpen ? 'active' : ''}`} onClick={() => setIsExifOpen(!isExifOpen)} title="Toggle EXIF Info">ℹ️</button>
+              <button className="close-btn" onClick={closeLightbox}>&times;</button>
+            </div>
           </div>
-          <div className="lightbox-stage">
-            <button className="arrow prev" onClick={() => navigate(-1)}>&#10094;</button>
-            <img
-              src={
-                photos[currentPhotoIndex].original_url.startsWith('http')
-                  ? photos[currentPhotoIndex].original_url
-                  : `${API_BASE}${photos[currentPhotoIndex].original_url}`
-              }
-              alt=""
-            />
-            <button className="arrow next" onClick={() => navigate(1)}>&#10095;</button>
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div className="lightbox-stage">
+              <button className="arrow prev" onClick={() => navigate(-1)}>&#10094;</button>
+              <img
+                src={
+                  photos[currentPhotoIndex].original_url.startsWith('http')
+                    ? photos[currentPhotoIndex].original_url
+                    : `${API_BASE}${photos[currentPhotoIndex].original_url}`
+                }
+                alt=""
+              />
+              <button className="arrow next" onClick={() => navigate(1)}>&#10095;</button>
+            </div>
+            {isExifOpen && (
+              <aside style={{ width: '320px', background: 'rgba(15, 23, 42, 0.9)', borderLeft: '1px solid rgba(255,255,255,0.1)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h4 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.1rem', color: '#fff' }}>{photos[currentPhotoIndex].title || 'Untitled Image'}</h4>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{new Date(photos[currentPhotoIndex].created_at).toLocaleString('th-TH')}</p>
+                <div style={{ marginTop: '12px' }}>
+                  <h5 style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '8px' }}>METADATA EXIF</h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.825rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>Camera</span><span style={{ color: '#fff', fontWeight: 600 }}>{photos[currentPhotoIndex].camera_make || 'Sony'} {photos[currentPhotoIndex].camera_model || 'A7 IV'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>Lens</span><span style={{ color: '#fff', fontWeight: 600 }}>{photos[currentPhotoIndex].focal_length || '35mm'}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>ISO</span><span style={{ color: '#fff', fontWeight: 600 }}>{photos[currentPhotoIndex].iso || 100}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#94a3b8' }}>Resolution</span><span style={{ color: '#fff', fontWeight: 600 }}>{photos[currentPhotoIndex].width || 1920} × {photos[currentPhotoIndex].height || 1080}</span></div>
+                  </div>
+                </div>
+              </aside>
+            )}
           </div>
         </div>
       )}

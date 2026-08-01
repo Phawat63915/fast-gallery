@@ -18,6 +18,7 @@
   let uploadTotal = $state(0);
   let uploadPercent = $state(0);
   let uploadStatusText = $state('');
+  let isExifOpen = $state(true);
 
   const preloadedCache = new Set();
   const preloadedOrder = [];
@@ -332,13 +333,36 @@
 {#if isLightboxOpen && currentPhotoIndex >= 0}
   <div class="lightbox" onwheel={handleWheel}>
     <div class="lightbox-bar">
-      <span>{currentPhotoIndex + 1} / {photos.length} (Scroll Wheel Supported)</span>
-      <button class="close-btn" onclick={closeLightbox}>&times;</button>
+      <div style="display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1;">
+        <span style="font-size: 0.85rem; color: #94a3b8;">{currentPhotoIndex + 1} / {photos.length}</span>
+        <span style="font-weight: 600; font-size: 0.9rem; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px;">{photos[currentPhotoIndex].title || 'Untitled Image'}</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="icon-btn {isExifOpen ? 'active' : ''}" onclick={() => isExifOpen = !isExifOpen} title="Toggle EXIF Info">ℹ️</button>
+        <button class="close-btn" onclick={closeLightbox}>&times;</button>
+      </div>
     </div>
-    <div class="lightbox-stage">
-      <button class="arrow prev" onclick={() => navigate(-1)}>&#10094;</button>
-      <img src={photos[currentPhotoIndex].original_url.startsWith('http') ? photos[currentPhotoIndex].original_url : `${API_BASE}${photos[currentPhotoIndex].original_url}`} alt="" />
-      <button class="arrow next" onclick={() => navigate(1)}>&#10095;</button>
+    <div style="flex: 1; display: flex; overflow: hidden;">
+      <div class="lightbox-stage">
+        <button class="arrow prev" onclick={() => navigate(-1)}>&#10094;</button>
+        <img src={photos[currentPhotoIndex].original_url.startsWith('http') ? photos[currentPhotoIndex].original_url : `${API_BASE}${photos[currentPhotoIndex].original_url}`} alt="" />
+        <button class="arrow next" onclick={() => navigate(1)}>&#10095;</button>
+      </div>
+      {#if isExifOpen}
+        <aside style="width: 320px; background: rgba(15, 23, 42, 0.9); border-left: 1px solid rgba(255,255,255,0.1); padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; color: #fff;">{photos[currentPhotoIndex].title || 'Untitled Image'}</h4>
+          <p style="font-size: 0.8rem; color: #94a3b8;">{new Date(photos[currentPhotoIndex].created_at).toLocaleString('th-TH')}</p>
+          <div style="margin-top: 12px;">
+            <h5 style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px;">METADATA EXIF</h5>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.825rem;">
+              <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">Camera</span><span style="color:#fff; font-weight:600;">{photos[currentPhotoIndex].camera_make || 'Sony'} {photos[currentPhotoIndex].camera_model || 'A7 IV'}</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">Lens</span><span style="color:#fff; font-weight:600;">{photos[currentPhotoIndex].focal_length || '35mm'}</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">ISO</span><span style="color:#fff; font-weight:600;">{photos[currentPhotoIndex].iso || 100}</span></div>
+              <div style="display:flex; justify-content:space-between;"><span style="color:#94a3b8;">Resolution</span><span style="color:#fff; font-weight:600;">{photos[currentPhotoIndex].width || 1920} × {photos[currentPhotoIndex].height || 1080}</span></div>
+            </div>
+          </div>
+        </aside>
+      {/if}
     </div>
   </div>
 {/if}

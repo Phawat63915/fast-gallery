@@ -7,6 +7,7 @@ import (
 )
 
 func TestInitDBAndSchema(t *testing.T) {
+	os.Setenv("DB_URL", "sqlite")
 	tmpDir, err := os.MkdirTemp("", "test_gallery_db_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -34,6 +35,7 @@ func TestInitDBAndSchema(t *testing.T) {
 }
 
 func TestInsertAndQueryPhoto(t *testing.T) {
+	os.Setenv("DB_URL", "sqlite")
 	tmpDir, err := os.MkdirTemp("", "test_gallery_db_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -96,6 +98,7 @@ func TestInsertAndQueryPhoto(t *testing.T) {
 }
 
 func TestCursorPagination(t *testing.T) {
+	os.Setenv("DB_URL", "sqlite")
 	tmpDir, err := os.MkdirTemp("", "test_gallery_db_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)

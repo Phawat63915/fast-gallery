@@ -114,6 +114,9 @@ function prefetchSingleUrl(photo) {
     preloadedCache.add(url);
     const img = new Image();
     img.src = url;
+    if (img.decode) {
+      img.decode().catch(() => {});
+    }
   }
 }
 

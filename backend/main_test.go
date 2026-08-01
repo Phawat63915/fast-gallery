@@ -14,6 +14,7 @@ import (
 )
 
 func setupTestServer(t *testing.T) (*httptest.Server, string) {
+	os.Setenv("DB_URL", "sqlite")
 	tmpDir, err := os.MkdirTemp("", "test_gallery_api_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)

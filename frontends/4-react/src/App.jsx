@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:8880';
+const preloadedCache = new Set();
 
 export default function App() {
   const [photos, setPhotos] = useState([]);
@@ -30,6 +31,24 @@ export default function App() {
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [isLightboxOpen, isUploadOpen, currentPhotoIndex, photos]);
+
+  function prefetchNeighbors(index, windowSize = 3) {
+    if (!photos || photos.length === 0) return;
+    for (let offset = -windowSize; offset <= windowSize; offset++) {
+      if (offset === 0) continue;
+      const targetIdx = (index + offset + photos.length) % photos.length;
+      const photo = photos[targetIdx];
+      if (!photo) continue;
+      const url = (photo.original_url || photo.micro_url).startsWith('http')
+        ? (photo.original_url || photo.micro_url)
+        : `${API_BASE}${photo.original_url || photo.micro_url}`;
+      if (!preloadedCache.has(url)) {
+        preloadedCache.add(url);
+        const img = new Image();
+        img.src = url;
+      }
+    }
+  }
 
   async function fetchPhotos() {
     try {
@@ -75,6 +94,7 @@ export default function App() {
   function openLightbox(index) {
     setCurrentPhotoIndex(index);
     setIsLightboxOpen(true);
+    prefetchNeighbors(index, 3);
   }
 
   function closeLightbox() {
@@ -87,7 +107,7 @@ export default function App() {
     let next = currentPhotoIndex + dir;
     if (next < 0) next = photos.length - 1;
     if (next >= photos.length) next = 0;
-    setCurrentPhotoIndex(next);
+    openLightbox(next);
   }
 
   function handleWheel(e) {

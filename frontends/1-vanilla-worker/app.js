@@ -1,5 +1,5 @@
 // FastGallery Stack 1: Vanilla JS + Web Worker Engine
-// Features: Ultra-Fast Lightbox Wheel Scroll Navigation (100ms throttle), DOM Node Recycling, Thumbhash Canvas
+// Features: Proactive Neighbor Image Prefetching (0ms Lightbox Swap), DOM Node Recycling, Thumbhash Canvas
 
 (function () {
   'use strict';
@@ -20,6 +20,7 @@
     lastFpsTime: performance.now(),
     
     activeNodes: new Map(),
+    preloadedCache: new Set(),
   };
 
   const API_BASE = 'http://localhost:8880';
@@ -43,11 +44,6 @@
   const btnCloseLightbox = document.getElementById('btn-close-lightbox');
   const btnPrevPhoto = document.getElementById('btn-prev-photo');
   const btnNextPhoto = document.getElementById('btn-next-photo');
-  const btnZoomToggle = document.getElementById('btn-zoom-toggle');
-  const btnDownload = document.getElementById('btn-download');
-  const btnExifToggle = document.getElementById('btn-exif-toggle');
-  const exifDrawer = document.getElementById('exif-drawer');
-
   const exifTitle = document.getElementById('exif-title');
   const exifDate = document.getElementById('exif-date');
   const exifCamera = document.getElementById('exif-camera');
@@ -218,16 +214,37 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  // Fast, instant Lightbox viewer
+  // Proactive Neighbor Image Prefetch Engine (0ms Swap)
+  function prefetchNeighborImages(currentIndex, windowSize = 3) {
+    if (!state.photos || state.photos.length === 0) return;
+    for (let offset = -windowSize; offset <= windowSize; offset++) {
+      if (offset === 0) continue;
+      const targetIdx = (currentIndex + offset + state.photos.length) % state.photos.length;
+      const photo = state.photos[targetIdx];
+      if (!photo) continue;
+
+      const url = (photo.original_url || photo.micro_url).startsWith('http')
+        ? (photo.original_url || photo.micro_url)
+        : `${API_BASE}${photo.original_url || photo.micro_url}`;
+
+      if (!state.preloadedCache.has(url)) {
+        state.preloadedCache.add(url);
+        const img = new Image();
+        img.src = url;
+      }
+    }
+  }
+
   function openLightbox(index) {
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
 
     const photo = state.photos[index];
-    lightboxImg.src = (photo.original_url || photo.micro_url).startsWith('http')
+    const targetURL = (photo.original_url || photo.micro_url).startsWith('http')
       ? (photo.original_url || photo.micro_url)
       : `${API_BASE}${photo.original_url || photo.micro_url}`;
-    
+
+    lightboxImg.src = targetURL;
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
 
     if (exifTitle) exifTitle.textContent = photo.title;
@@ -238,6 +255,9 @@
     if (exifRes) exifRes.textContent = `${photo.width} x ${photo.height}`;
 
     lightboxModal.classList.remove('hidden');
+
+    // Trigger prefetch for next 3 & prev 3 photos
+    prefetchNeighborImages(index, 3);
   }
 
   function closeLightbox() {
@@ -246,7 +266,6 @@
     state.currentPhotoIndex = -1;
   }
 
-  // Ultra-Fast Navigation with 100ms Throttle
   function navigateLightbox(dir) {
     if (state.currentPhotoIndex < 0) return;
     let next = state.currentPhotoIndex + dir;
@@ -257,13 +276,12 @@
     openLightbox(next);
   }
 
-  // Mouse Wheel Scroll Navigation (100ms ultra-smooth throttle matching Svelte)
   function handleLightboxWheel(e) {
     if (lightboxModal.classList.contains('hidden')) return;
 
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 100) return; // 100ms fast throttle
+    if (now - state.wheelThrottleTimer < 100) return;
     state.wheelThrottleTimer = now;
 
     if (e.deltaY > 0 || e.deltaX > 0) {

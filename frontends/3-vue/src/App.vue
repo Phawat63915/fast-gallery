@@ -62,6 +62,7 @@ const isUploadOpen = ref(false);
 const ramAlloc = ref('-- MB');
 const fileInput = ref(null);
 const API_BASE = 'http://localhost:8880';
+const preloadedCache = new Set();
 let wheelThrottleTimer = 0;
 
 onMounted(async () => {
@@ -92,6 +93,24 @@ async function fetchStats() {
   } catch (e) {}
 }
 
+function prefetchNeighbors(index, windowSize = 3) {
+  if (!photos.value || photos.value.length === 0) return;
+  for (let offset = -windowSize; offset <= windowSize; offset++) {
+    if (offset === 0) continue;
+    const targetIdx = (index + offset + photos.value.length) % photos.value.length;
+    const photo = photos.value[targetIdx];
+    if (!photo) continue;
+    const url = (photo.original_url || photo.micro_url).startsWith('http')
+      ? (photo.original_url || photo.micro_url)
+      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    if (!preloadedCache.has(url)) {
+      preloadedCache.add(url);
+      const img = new Image();
+      img.src = url;
+    }
+  }
+}
+
 async function handleFileUpload(e) {
   const files = e.target.files;
   if (!files || files.length === 0) return;
@@ -119,6 +138,7 @@ async function handleFileUpload(e) {
 function openLightbox(index) {
   currentPhotoIndex.value = index;
   isLightboxOpen.value = true;
+  prefetchNeighbors(index, 3);
 }
 
 function closeLightbox() {
@@ -131,7 +151,7 @@ function navigate(dir) {
   let next = currentPhotoIndex.value + dir;
   if (next < 0) next = photos.value.length - 1;
   if (next >= photos.value.length) next = 0;
-  currentPhotoIndex.value = next;
+  openLightbox(next);
 }
 
 function handleWheel(e) {

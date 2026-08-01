@@ -4,6 +4,7 @@
     photos: [], layoutRows: [], totalGridHeight: 0, nextCursor: 0, hasMore: true, isLoading: false,
     currentPhotoIndex: -1, wheelThrottleTimer: 0,
     fps: 60, frameCount: 0, lastFpsTime: performance.now(), activeNodes: new Map(),
+    preloadedCache: new Set(),
   };
 
   const API_BASE = 'http://localhost:8880';
@@ -152,6 +153,26 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
+  function prefetchNeighborImages(currentIndex, windowSize = 3) {
+    if (!state.photos || state.photos.length === 0) return;
+    for (let offset = -windowSize; offset <= windowSize; offset++) {
+      if (offset === 0) continue;
+      const targetIdx = (currentIndex + offset + state.photos.length) % state.photos.length;
+      const photo = state.photos[targetIdx];
+      if (!photo) continue;
+
+      const url = (photo.original_url || photo.micro_url).startsWith('http')
+        ? (photo.original_url || photo.micro_url)
+        : `${API_BASE}${photo.original_url || photo.micro_url}`;
+
+      if (!state.preloadedCache.has(url)) {
+        state.preloadedCache.add(url);
+        const img = new Image();
+        img.src = url;
+      }
+    }
+  }
+
   function openLightbox(index) {
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
@@ -161,6 +182,7 @@
     if (exifTitle) exifTitle.textContent = photo.title;
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     lightboxModal.classList.remove('hidden');
+    prefetchNeighborImages(index, 3);
   }
 
   function closeLightbox() { lightboxModal.classList.add('hidden'); lightboxImg.src = ''; state.currentPhotoIndex = -1; }
@@ -176,7 +198,7 @@
     if (lightboxModal.classList.contains('hidden')) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - state.wheelThrottleTimer < 100) return; // 100ms ultra-fast throttle
+    if (now - state.wheelThrottleTimer < 100) return;
     state.wheelThrottleTimer = now;
     if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
     else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);

@@ -8,6 +8,7 @@
   let ramAlloc = $state('-- MB');
   let wheelThrottleTimer = 0;
   let fileInput;
+  const preloadedCache = new Set();
 
   const API_BASE = 'http://localhost:8880';
 
@@ -32,6 +33,24 @@
       const data = await res.json();
       if (data.alloc_ram_mb) ramAlloc = data.alloc_ram_mb;
     } catch (e) {}
+  }
+
+  function prefetchNeighbors(index, windowSize = 3) {
+    if (!photos || photos.length === 0) return;
+    for (let offset = -windowSize; offset <= windowSize; offset++) {
+      if (offset === 0) continue;
+      const targetIdx = (index + offset + photos.length) % photos.length;
+      const photo = photos[targetIdx];
+      if (!photo) continue;
+      const url = (photo.original_url || photo.micro_url).startsWith('http')
+        ? (photo.original_url || photo.micro_url)
+        : `${API_BASE}${photo.original_url || photo.micro_url}`;
+      if (!preloadedCache.has(url)) {
+        preloadedCache.add(url);
+        const img = new Image();
+        img.src = url;
+      }
+    }
   }
 
   async function handleFileUpload(files) {
@@ -60,6 +79,7 @@
   function openLightbox(index) {
     currentPhotoIndex = index;
     isLightboxOpen = true;
+    prefetchNeighbors(index, 3);
   }
 
   function closeLightbox() {
@@ -72,7 +92,7 @@
     let next = currentPhotoIndex + dir;
     if (next < 0) next = photos.length - 1;
     if (next >= photos.length) next = 0;
-    currentPhotoIndex = next;
+    openLightbox(next);
   }
 
   function handleWheel(e) {

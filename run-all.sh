@@ -3,7 +3,7 @@ echo "========================================================="
 echo "⚡ FastGallery Multi-Stack Benchmark Suite (5 Frontends)"
 echo "========================================================="
 
-echo "1. Starting PostgreSQL 16 via Docker Compose..."
+echo "1. Starting PostgreSQL 17 via Docker Compose..."
 docker compose up -d db
 
 echo "2. Building Go Backend Binary..."

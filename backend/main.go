@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fast-gallery/backend/db"
 	"fast-gallery/backend/upload"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,49 +22,55 @@ var (
 	database  *db.DB
 	pipeline  *upload.Pipeline
 	startTime time.Time
+
+	// Sub-millisecond JSON Response Cache for /api/photos
+	apiCacheMutex sync.RWMutex
+	apiCache      = make(map[string][]byte)
 )
 
 func main() {
 	startTime = time.Now()
-	log.Println("Starting Immich FastGallery Server (Go Backend)...")
+	log.Println("Starting Immich FastGallery Server (High-Performance Go Backend)...")
 
-	// Determine data and frontend directories
 	dataDir := findDir("data", "../data")
 	frontendDir := findDir("frontend", "../frontend")
 
 	log.Printf("Using Data Directory: %s", dataDir)
 	log.Printf("Hosting Frontend Directory: %s", frontendDir)
 
-	// 1. Initialize SQLite WAL Database
 	var err error
 	database, err = db.InitDB(dataDir)
 	if err != nil {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
 
-	// 2. Initialize Goroutine Upload Pipeline
 	pipeline, err = upload.NewPipeline(database, dataDir, runtime.NumCPU())
 	if err != nil {
 		log.Fatalf("Fatal: Upload pipeline initialization failed: %v", err)
 	}
 
-	// 3. HTTP Server Routes
 	mux := http.NewServeMux()
 
-	// API Routes
-	mux.HandleFunc("/api/photos", handleGetPhotos)
-	mux.HandleFunc("/api/upload", handleUploadPhoto)
-	mux.HandleFunc("/api/stats", handleGetStats)
+	// High-performance API endpoints with CORS and Gzip support
+	mux.HandleFunc("/api/photos", corsMiddleware(handleGetPhotos))
+	mux.HandleFunc("/api/upload", corsMiddleware(handleUploadPhoto))
+	mux.HandleFunc("/api/stats", corsMiddleware(handleGetStats))
 
-	// Static Upload Media File Server with Immutable HTTP Cache Headers
+	// Static Upload Media File Server with Immutable 1-Year Cache & Fast Byte-Range Support
 	fileServer := http.FileServer(http.Dir(dataDir))
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Timing-Allow-Origin", "*")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		fileServer.ServeHTTP(w, r)
 	})))
 
-	// Frontend Static Files (Backend Hosts Frontend)
+	// Frontend Static Files
 	publicServer := http.FileServer(http.Dir(frontendDir))
 	mux.Handle("/", publicServer)
 
@@ -77,6 +86,20 @@ func main() {
 	}
 }
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func findDir(names ...string) string {
 	for _, name := range names {
 		if _, err := os.Stat(name); err == nil {
@@ -87,20 +110,37 @@ func findDir(names ...string) string {
 			return name
 		}
 	}
-	// Fallback create default
 	os.MkdirAll(names[0], 0755)
 	return names[0]
 }
 
+func invalidateAPICache() {
+	apiCacheMutex.Lock()
+	apiCache = make(map[string][]byte)
+	apiCacheMutex.Unlock()
+}
+
 func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Vary", "Accept-Encoding")
 
 	cursorStr := r.URL.Query().Get("cursor")
 	limitStr := r.URL.Query().Get("limit")
 
+	cacheKey := fmt.Sprintf("photos_%s_%s", cursorStr, limitStr)
+
+	// Sub-millisecond Cache Check
+	apiCacheMutex.RLock()
+	cachedBytes, exists := apiCache[cacheKey]
+	apiCacheMutex.RUnlock()
+
+	if exists {
+		writeGzipResponse(w, r, cachedBytes)
+		return
+	}
+
 	var cursor int64 = 0
-	limit := 100
+	limit := 200
 
 	if cursorStr != "" {
 		cursor, _ = strconv.ParseInt(cursorStr, 10, 64)
@@ -126,17 +166,32 @@ func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 		"next_cursor": nextCursor,
 	}
 
-	json.NewEncoder(w).Encode(response)
-}
-
-func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, "JSON error", http.StatusInternalServerError)
 		return
 	}
 
+	// Cache JSON in memory
+	apiCacheMutex.Lock()
+	apiCache[cacheKey] = jsonBytes
+	apiCacheMutex.Unlock()
+
+	writeGzipResponse(w, r, jsonBytes)
+}
+
+func writeGzipResponse(w http.ResponseWriter, r *http.Request, data []byte) {
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		gz.Write(data)
+	} else {
+		w.Write(data)
+	}
+}
+
+func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -199,6 +254,8 @@ func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
 		uploadedIDs = append(uploadedIDs, id)
 	}
 
+	invalidateAPICache()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
@@ -210,7 +267,6 @@ func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
 
 func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	count, _ := database.GetPhotoCount()
 

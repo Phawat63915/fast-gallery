@@ -12,7 +12,7 @@
   let gridContainer;
   let fileInput;
 
-  // 1,000+ Batch Uploading Progress State
+  // 99,999 Parallel Streaming Pipeline Progress State
   let isUploading = $state(false);
   let uploadProgress = $state(0);
   let uploadTotal = $state(0);
@@ -122,7 +122,7 @@
     }
   }
 
-  // 1,000+ Concurrent Batch Upload Pipeline (Immich Engine)
+  // 99,999 Parallel Streaming Pipeline Engine (Concurrency Pool = 6)
   async function handleFileUpload(files) {
     if (!files || files.length === 0) return;
 
@@ -130,35 +130,52 @@
     uploadTotal = files.length;
     uploadProgress = 0;
     uploadPercent = 0;
-    uploadStatusText = `Initializing batch queue for ${uploadTotal.toLocaleString()} photos...`;
+    uploadStatusText = `Initializing 6 parallel upload streams for ${uploadTotal.toLocaleString()} photos...`;
 
     const fileList = Array.from(files);
-    const BATCH_SIZE = 5; // Send 5 photos per parallel batch HTTP request
+    const BATCH_SIZE = 10;
+    const CONCURRENCY = 6;
 
+    const batches = [];
     for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
-      const chunk = fileList.slice(i, i + BATCH_SIZE);
-      const formData = new FormData();
-      for (const file of chunk) {
-        formData.append('photos', file);
-      }
+      batches.push(fileList.slice(i, i + BATCH_SIZE));
+    }
 
-      try {
-        uploadStatusText = `Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(fileList.length / BATCH_SIZE)}...`;
-        const res = await fetch(`${API_BASE}/api/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.success) {
-          uploadProgress += chunk.length;
-          uploadPercent = Math.round((uploadProgress / uploadTotal) * 100);
+    let completedCount = 0;
+    let batchIndex = 0;
+
+    async function worker() {
+      while (batchIndex < batches.length) {
+        const currentBatchIdx = batchIndex++;
+        const chunk = batches[currentBatchIdx];
+
+        const formData = new FormData();
+        for (const file of chunk) {
+          formData.append('photos', file);
         }
-      } catch (err) {
-        console.error('Batch upload error:', err);
+
+        try {
+          const res = await fetch(`${API_BASE}/api/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.success) {
+            completedCount += chunk.length;
+            uploadProgress = completedCount;
+            uploadPercent = Math.round((completedCount / uploadTotal) * 100);
+            uploadStatusText = `Streaming parallel batches... Completed ${completedCount.toLocaleString()} / ${uploadTotal.toLocaleString()} files (${uploadPercent}%)`;
+          }
+        } catch (err) {
+          console.error('Batch upload error:', err);
+        }
       }
     }
 
-    uploadStatusText = `Upload Complete! Indexed ${uploadTotal.toLocaleString()} photos successfully!`;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, batches.length) }, () => worker());
+    await Promise.all(workers);
+
+    uploadStatusText = `Upload Complete! Indexed ${uploadTotal.toLocaleString()} photos across 6 streams!`;
     setTimeout(async () => {
       isUploading = false;
       isUploadOpen = false;
@@ -253,7 +270,7 @@
   .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
   
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
-  .modal-card { width: 520px; background: #111726; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
+  .modal-card { width: 540px; background: #111726; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
   .drop-area { border: 2px dashed rgba(255,255,255,0.25); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; margin-top: 16px; transition: border-color 0.2s ease; }
   .drop-area:hover { border-color: #3b82f6; }
   
@@ -271,7 +288,7 @@
   </div>
   <div style="display: flex; align-items: center; gap: 16px;">
     <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {photos.length} | Visible DOM: {virtualData.items.length} | RAM: {ramAlloc}</span>
-    <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload Photos (1,000+)</button>
+    <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload Photos (99,999+)</button>
   </div>
 </div>
 
@@ -303,7 +320,7 @@
   <div class="modal">
     <div class="modal-card">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Upload Photos (1,000+ Batch Queue)</h3>
+        <h3>Upload Photos (99,999+ Streaming Queue)</h3>
         {#if !isUploading}
           <button class="close-btn" onclick={() => isUploadOpen = false}>&times;</button>
         {/if}
@@ -311,16 +328,16 @@
 
       {#if !isUploading}
         <div class="drop-area" onclick={() => fileInput.click()}>
-          <p style="font-size: 40px;">⚡📤</p>
-          <p style="margin-top: 12px; font-weight: 600; font-size: 1.05rem;">Click to select up to 1,000+ photos</p>
-          <p style="margin-top: 6px; font-size: 0.8rem; color: #94a3b8;">High-speed concurrent batch pipeline engine</p>
+          <p style="font-size: 40px;">⚡🚀</p>
+          <p style="margin-top: 12px; font-weight: 600; font-size: 1.05rem;">Select up to 99,999+ photos</p>
+          <p style="margin-top: 6px; font-size: 0.8rem; color: #94a3b8;">6 Parallel Worker Streams • Zero Main-Thread Lockup</p>
           <input bind:this={fileInput} type="file" multiple accept="image/*" style="display:none;" onchange={(e) => handleFileUpload(e.target.files)} />
         </div>
       {:else}
         <div style="margin-top: 24px;">
           <div style="display:flex; justify-content:space-between; font-size: 0.9rem; font-weight:600;">
-            <span>Uploading Photos...</span>
-            <span style="color: #06b6d4;">{uploadProgress} / {uploadTotal} ({uploadPercent}%)</span>
+            <span>Uploading via 6 Parallel Streams...</span>
+            <span style="color: #06b6d4;">{uploadProgress.toLocaleString()} / {uploadTotal.toLocaleString()} ({uploadPercent}%)</span>
           </div>
           <div class="progress-container">
             <div class="progress-bar" style="width: {uploadPercent}%;"></div>

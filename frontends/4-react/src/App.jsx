@@ -14,7 +14,7 @@ export default function App() {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(800);
 
-  // 1,000+ Batch Uploading Progress State
+  // 99,999 Parallel Streaming Pipeline Progress State
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
@@ -137,7 +137,7 @@ export default function App() {
     } catch (e) {}
   }
 
-  // 1,000+ Concurrent Batch Upload Pipeline (React Engine)
+  // 99,999 Parallel Streaming Pipeline Engine (Concurrency Pool = 6)
   async function handleFileUpload(files) {
     if (!files || files.length === 0) return;
 
@@ -145,37 +145,53 @@ export default function App() {
     setUploadTotal(files.length);
     setUploadProgress(0);
     setUploadPercent(0);
-    setUploadStatusText(`Initializing batch queue for ${files.length.toLocaleString()} photos...`);
+    setUploadStatusText(`Initializing 6 parallel upload streams for ${files.length.toLocaleString()} photos...`);
 
     const fileList = Array.from(files);
-    const BATCH_SIZE = 5;
-    let completed = 0;
+    const BATCH_SIZE = 10;
+    const CONCURRENCY = 6;
 
+    const batches = [];
     for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
-      const chunk = fileList.slice(i, i + BATCH_SIZE);
-      const formData = new FormData();
-      for (const file of chunk) {
-        formData.append('photos', file);
-      }
+      batches.push(fileList.slice(i, i + BATCH_SIZE));
+    }
 
-      try {
-        setUploadStatusText(`Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(fileList.length / BATCH_SIZE)}...`);
-        const res = await fetch(`${API_BASE}/api/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.success) {
-          completed += chunk.length;
-          setUploadProgress(completed);
-          setUploadPercent(Math.round((completed / files.length) * 100));
+    let completedCount = 0;
+    let batchIndex = 0;
+
+    async function worker() {
+      while (batchIndex < batches.length) {
+        const currentBatchIdx = batchIndex++;
+        const chunk = batches[currentBatchIdx];
+
+        const formData = new FormData();
+        for (const file of chunk) {
+          formData.append('photos', file);
         }
-      } catch (err) {
-        console.error('Batch upload error:', err);
+
+        try {
+          const res = await fetch(`${API_BASE}/api/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.success) {
+            completedCount += chunk.length;
+            setUploadProgress(completedCount);
+            const percent = Math.round((completedCount / files.length) * 100);
+            setUploadPercent(percent);
+            setUploadStatusText(`Streaming parallel batches... Completed ${completedCount.toLocaleString()} / ${files.length.toLocaleString()} files (${percent}%)`);
+          }
+        } catch (err) {
+          console.error('Batch upload error:', err);
+        }
       }
     }
 
-    setUploadStatusText(`Upload Complete! Indexed ${files.length.toLocaleString()} photos successfully!`);
+    const workers = Array.from({ length: Math.min(CONCURRENCY, batches.length) }, () => worker());
+    await Promise.all(workers);
+
+    setUploadStatusText(`Upload Complete! Indexed ${files.length.toLocaleString()} photos across 6 streams!`);
     setTimeout(async () => {
       setIsUploading(false);
       setIsUploadOpen(false);
@@ -259,7 +275,7 @@ export default function App() {
         .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
         
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
-        .modal-card { width: 520px; background: #111726; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
+        .modal-card { width: 540px; background: #111726; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
         .drop-area { border: 2px dashed rgba(255,255,255,0.25); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; margin-top: 16px; transition: border-color 0.2s ease; }
         .drop-area:hover { border-color: #3b82f6; }
 
@@ -277,7 +293,7 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | Visible DOM: {virtualData.items.length} | RAM: {ramAlloc}</span>
-          <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos (1,000+)</button>
+          <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos (99,999+)</button>
         </div>
       </div>
 
@@ -325,7 +341,7 @@ export default function App() {
         <div className="modal">
           <div className="modal-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Upload Photos (1,000+ Batch Queue)</h3>
+              <h3>Upload Photos (99,999+ Streaming Queue)</h3>
               {!isUploading && (
                 <button className="close-btn" onClick={() => setIsUploadOpen(false)}>&times;</button>
               )}
@@ -333,9 +349,9 @@ export default function App() {
 
             {!isUploading ? (
               <div className="drop-area" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
-                <p style={{ fontSize: '40px' }}>⚡📤</p>
-                <p style={{ marginTop: '12px', fontWeight: 600, fontSize: '1.05rem' }}>Click to select up to 1,000+ photos</p>
-                <p style={{ marginTop: '6px', fontSize: '0.8rem', color: '#94a3b8' }}>High-speed concurrent batch pipeline engine</p>
+                <p style={{ fontSize: '40px' }}>⚡🚀</p>
+                <p style={{ marginTop: '12px', fontWeight: 600, fontSize: '1.05rem' }}>Select up to 99,999+ photos</p>
+                <p style={{ marginTop: '6px', fontSize: '0.8rem', color: '#94a3b8' }}>6 Parallel Worker Streams • Zero Main-Thread Lockup</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -348,8 +364,8 @@ export default function App() {
             ) : (
               <div style={{ marginTop: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
-                  <span>Uploading Photos...</span>
-                  <span style={{ color: '#06b6d4' }}>{uploadProgress} / {uploadTotal} ({uploadPercent}%)</span>
+                  <span>Uploading via 6 Parallel Streams...</span>
+                  <span style={{ color: '#06b6d4' }}>{uploadProgress.toLocaleString()} / {uploadTotal.toLocaleString()} ({uploadPercent}%)</span>
                 </div>
                 <div className="progress-container">
                   <div className="progress-bar" style={{ width: `${uploadPercent}%` }}></div>

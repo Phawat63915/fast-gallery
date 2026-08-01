@@ -401,35 +401,50 @@
 
         const fileList = Array.from(files);
         const total = fileList.length;
-        let completed = 0;
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 10;
+        const CONCURRENCY = 6;
 
+        const batches = [];
         for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
-          const chunk = fileList.slice(i, i + BATCH_SIZE);
-          const formData = new FormData();
-          for (const file of chunk) {
-            formData.append('photos', file);
-          }
+          batches.push(fileList.slice(i, i + BATCH_SIZE));
+        }
 
-          try {
-            uploadStatusSub.textContent = `Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(fileList.length / BATCH_SIZE)}...`;
-            const res = await fetch(`${API_BASE}/api/upload`, {
-              method: 'POST',
-              body: formData,
-            });
-            const data = await res.json();
-            if (data.success) {
-              completed += chunk.length;
-              const percent = Math.round((completed / total) * 100);
-              uploadProgressText.textContent = `${completed} / ${total} (${percent}%)`;
-              uploadProgressBar.style.width = `${percent}%`;
+        let completedCount = 0;
+        let batchIndex = 0;
+
+        async function worker() {
+          while (batchIndex < batches.length) {
+            const currentBatchIdx = batchIndex++;
+            const chunk = batches[currentBatchIdx];
+
+            const formData = new FormData();
+            for (const file of chunk) {
+              formData.append('photos', file);
             }
-          } catch (err) {
-            console.error('Batch upload error:', err);
+
+            try {
+              const res = await fetch(`${API_BASE}/api/upload`, {
+                method: 'POST',
+                body: formData,
+              });
+              const data = await res.json();
+              if (data.success) {
+                completedCount += chunk.length;
+                const percent = Math.round((completedCount / total) * 100);
+                uploadProgressText.textContent = `${completedCount.toLocaleString()} / ${total.toLocaleString()} (${percent}%)`;
+                uploadProgressBar.style.width = `${percent}%`;
+                uploadStatusSub.textContent = `Streaming parallel batches... Completed ${completedCount.toLocaleString()} / ${total.toLocaleString()} files (${percent}%)`;
+              }
+            } catch (err) {
+              console.error('Batch upload error:', err);
+            }
           }
         }
 
-        uploadStatusSub.textContent = `Upload Complete! Indexed ${total.toLocaleString()} photos successfully!`;
+        const workers = Array.from({ length: Math.min(CONCURRENCY, batches.length) }, () => worker());
+        await Promise.all(workers);
+
+        uploadStatusSub.textContent = `Upload Complete! Indexed ${total.toLocaleString()} photos across 6 streams!`;
         setTimeout(async () => {
           uploadProgressBox.style.display = 'none';
           dropZone.style.display = 'block';

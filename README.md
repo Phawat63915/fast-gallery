@@ -1,6 +1,6 @@
 # ⚡ FastGallery: Extreme High-Performance Multi-Stack Photo Engine
 
-ระบบคลังภาพถ่ายประสิทธิภาพสูงความเร็วระดับ 120 FPS รองรับภาพถ่ายระดับ **99,999+ ไฟล์** พร้อมสถาปัตยกรรม 5 Frontend Stacks และ Go 1.26 Backend + PostgreSQL 17 / SQLite WAL
+ระบบคลังภาพถ่ายประสิทธิภาพสูงความเร็วระดับ 120 FPS รองรับภาพถ่ายระดับ **99,999+ ไฟล์** พร้อมสถาปัตยกรรม 5 Frontend Stacks และ Go 1.26 Backend + PostgreSQL 18 / SQLite WAL
 
 ---
 
@@ -27,7 +27,7 @@
 ```text
 fast-gallery/
 ├── 📄 README.md                      # เอกสารคู่มือโครงการ สถาปัตยกรรม และคำสั่งการพัฒนา
-├── 📄 docker-compose.yml             # คอนฟิกูเรชัน Docker สำหรับ PostgreSQL 17 Database
+├── 📄 docker-compose.yml             # คอนฟิกูเรชัน Docker สำหรับ PostgreSQL 18 Database
 ├── 📜 build.sh                       # สคริปต์สำหรับการคอมไพล์ Frontend และ Backend
 ├── 📜 run-all.sh                     # สคริปต์เปิดรันบริการทั้งหมด (พอร์ต 8880 - 8885) พร้อมกัน
 ├── 📜 run-dev.sh                     # สคริปต์รันโหมด Development
@@ -37,7 +37,7 @@ fast-gallery/
 │   ├── 📄 main_test.go               # ชุดการทดสอบ API Server (SQLite In-Memory Isolated Mode)
 │   ├── 📄 go.mod                     # การจัดการ Dependency ของ Go
 │   └── 📂 db/                        # เลเยอร์จัดการฐานข้อมูล (Database Abstraction Layer)
-│       ├── 📄 database.go            # ไดรเวอร์เชื่อมต่อ PostgreSQL 17 & SQLite WAL Mode
+│       ├── 📄 database.go            # ไดรเวอร์เชื่อมต่อ PostgreSQL 18 & SQLite WAL Mode
 │       └── 📄 database_test.go       # การทดสอบคำสั่ง Database CRUD
 ├── 📂 data/                          # โฟลเดอร์จัดเก็บไฟล์ภาพถ่าย (Static Media Storage)
 │   ├── 📂 original/                  # ภาพถ่ายต้นฉบับความละเอียดสูง (Original Resolution Images)
@@ -95,7 +95,7 @@ flowchart TD
     GetPhotos -->|Check Cache| MemoryCache{"In-Memory API Cache"}
     MemoryCache -->|"Cache Hit 1ms"| ReturnCache["Write Gzip JSON Response"]
     MemoryCache -->|"Cache Miss"| QueryDB["database.GetPhotos"]
-    QueryDB --> PostgresOrSqlite["PostgreSQL 17 / SQLite WAL Mode"]
+    QueryDB --> PostgresOrSqlite["PostgreSQL 18 / SQLite WAL Mode"]
     PostgresOrSqlite --> CacheSave["Store Result in Cache"] --> ReturnCache
 
     UploadPhotos -->|Buffer Stream| MultipartParser["ParseMultipartForm 500MB Buffer"]
@@ -124,7 +124,7 @@ HTTP REST API Pipeline (Go Backend Port 8880)
 │   ├── 📥 GET /api/photos
 │   │   ├── Query Parameters: limit (500), cursor (Unix Timestamp)
 │   │   ├── Step 1: ตรวจสอบ In-Memory LRU API Cache (หากมี จะส่งคืนใน 0ms)
-│   │   ├── Step 2: อ่านข้อมูลจากฐานข้อมูล (PostgreSQL 17 หรือ SQLite WAL)
+│   │   ├── Step 2: อ่านข้อมูลจากฐานข้อมูล (PostgreSQL 18 หรือ SQLite WAL)
 │   │   └── Response Payload JSON:
 │   │       {
 │   │         "photos": [
@@ -176,8 +176,8 @@ HTTP REST API Pipeline (Go Backend Port 8880)
 ### 1. ⚙️ Backend Layer (การประมวลผลหลังบ้าน)
 - **Go 1.26 Runtime**: ภาษาหลักหลังบ้านที่มีความเร็วสูง ใช้ Goroutine แบบ Lightweight รองรับ Concurrency สูงสุด
 - **Go 32-Goroutine Worker Pool**: ใช้ Worker Pool จำนวน 32 เธรดประมวลผลสร้างภาพย่อ (Micro Thumbnail) และถอดรหัส Thumbhash พร้อมกัน
-- **PostgreSQL 17 & SQLite WAL Mode Dual Database Driver**:
-  - โหมดจริงใช้ PostgreSQL 17 เพื่อรองรับการสเกลข้อมูลขนาดใหญ่
+- **PostgreSQL 18 & SQLite WAL Mode Dual Database Driver**:
+  - โหมดจริงใช้ PostgreSQL 18 เพื่อรองรับการสเกลข้อมูลขนาดใหญ่
   - โหมด SQLite WAL (Write-Ahead Logging) เพิ่มความเร็วอ่านเขียนข้อมูลแบบ Zero-CGO C-free Driver (`modernc.org/sqlite`)
 - **Gzip Dynamic API Compression**: บีบอัดข้อมูล JSON หน้าเครือข่าย ส่งผลให้ข้อมูลพิกัดภาพถ่ายถูกส่งถึงหน้าบ้านในระยะเวลาเพียง **1-2ms**
 

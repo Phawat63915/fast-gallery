@@ -8,14 +8,15 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 16px;">
-      <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | Visible DOM: {{ visiblePhotos.length }} | RAM: {{ ramAlloc }}</span>
+      <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | Visible DOM: {{ virtualData.items.length }} | RAM: {{ ramAlloc }}</span>
       <button class="btn-upload" @click="isUploadOpen = true">Upload Photos</button>
     </div>
   </div>
 
   <div ref="gridContainer" class="grid-container" @scroll="handleScroll">
+    <div :style="{ height: virtualData.topSpacer + 'px', width: '100%' }"></div>
     <div
-      v-for="item in visiblePhotos"
+      v-for="item in virtualData.items"
       :key="item.photo.id"
       class="tile"
       :style="{ width: (220 * (item.photo.aspect_ratio || 1.5)) + 'px' }"
@@ -23,6 +24,7 @@
     >
       <img :src="item.photo.micro_url.startsWith('http') ? item.photo.micro_url : API_BASE + item.photo.micro_url" :alt="item.photo.title" loading="lazy" />
     </div>
+    <div :style="{ height: virtualData.bottomSpacer + 'px', width: '100%' }"></div>
   </div>
 
   <div v-if="isLightboxOpen && currentPhotoIndex >= 0" class="lightbox" @wheel.prevent="handleWheel">
@@ -84,21 +86,29 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
 
-const visiblePhotos = computed(() => {
-  if (!photos.value || photos.value.length === 0) return [];
-  const rowHeight = 220;
+const virtualData = computed(() => {
+  if (!photos.value || photos.value.length === 0) return { items: [], topSpacer: 0, bottomSpacer: 0 };
+  const rowHeight = 223;
   const itemsPerRow = 4;
-  const buffer = 400;
-  const startRow = Math.max(0, Math.floor((scrollTop.value - buffer) / rowHeight));
-  const endRow = Math.ceil((scrollTop.value + viewportHeight.value + buffer) / rowHeight);
-  
-  const startIdx = Math.max(0, startRow * itemsPerRow);
+  const bufferRows = 3;
+  const totalRows = Math.ceil(photos.value.length / itemsPerRow);
+
+  const currentLine = Math.floor(scrollTop.value / rowHeight);
+  const startRow = Math.max(0, currentLine - bufferRows);
+  const endRow = Math.min(totalRows, Math.ceil((scrollTop.value + viewportHeight.value) / rowHeight) + bufferRows);
+
+  const startIdx = startRow * itemsPerRow;
   const endIdx = Math.min(photos.value.length, endRow * itemsPerRow);
-  
-  return photos.value.slice(startIdx, endIdx).map((photo, offset) => ({
+
+  const topSpacer = startRow * rowHeight;
+  const bottomSpacer = Math.max(0, (totalRows - endRow) * rowHeight);
+
+  const items = photos.value.slice(startIdx, endIdx).map((photo, offset) => ({
     photo,
     globalIndex: startIdx + offset
   }));
+
+  return { items, topSpacer, bottomSpacer };
 });
 
 function handleScroll(e) {
@@ -245,7 +255,6 @@ function handleKeydown(e) {
   touch-action: pan-y;
   overscroll-behavior-y: contain;
   will-change: scroll-position;
-  contain: layout paint;
 }
 
 .tile {
@@ -259,8 +268,6 @@ function handleKeydown(e) {
   will-change: transform;
   backface-visibility: hidden;
   transform: translateZ(0);
-  contain: strict;
-  content-visibility: auto;
 }
 
 .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }

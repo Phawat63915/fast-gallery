@@ -40,21 +40,29 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [isLightboxOpen, isUploadOpen, currentPhotoIndex, photos]);
 
-  const visiblePhotos = useMemo(() => {
-    if (!photos || photos.length === 0) return [];
-    const rowHeight = 220;
+  const virtualData = useMemo(() => {
+    if (!photos || photos.length === 0) return { items: [], topSpacer: 0, bottomSpacer: 0 };
+    const rowHeight = 223;
     const itemsPerRow = 4;
-    const buffer = 400;
-    const startRow = Math.max(0, Math.floor((scrollTop - buffer) / rowHeight));
-    const endRow = Math.ceil((scrollTop + viewportHeight + buffer) / rowHeight);
+    const bufferRows = 3;
+    const totalRows = Math.ceil(photos.length / itemsPerRow);
 
-    const startIdx = Math.max(0, startRow * itemsPerRow);
+    const currentLine = Math.floor(scrollTop / rowHeight);
+    const startRow = Math.max(0, currentLine - bufferRows);
+    const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewportHeight) / rowHeight) + bufferRows);
+
+    const startIdx = startRow * itemsPerRow;
     const endIdx = Math.min(photos.length, endRow * itemsPerRow);
 
-    return photos.slice(startIdx, endIdx).map((photo, offset) => ({
+    const topSpacer = startRow * rowHeight;
+    const bottomSpacer = Math.max(0, (totalRows - endRow) * rowHeight);
+
+    const items = photos.slice(startIdx, endIdx).map((photo, offset) => ({
       photo,
       globalIndex: startIdx + offset,
     }));
+
+    return { items, topSpacer, bottomSpacer };
   }, [photos, scrollTop, viewportHeight]);
 
   function handleScroll(e) {
@@ -193,7 +201,6 @@ export default function App() {
           touch-action: pan-y;
           overscroll-behavior-y: contain;
           will-change: scroll-position;
-          contain: layout paint;
         }
 
         .tile {
@@ -207,8 +214,6 @@ export default function App() {
           will-change: transform;
           backface-visibility: hidden;
           transform: translateZ(0);
-          contain: strict;
-          content-visibility: auto;
         }
 
         .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
@@ -234,13 +239,14 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | Visible DOM: {visiblePhotos.length} | RAM: {ramAlloc}</span>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | Visible DOM: {virtualData.items.length} | RAM: {ramAlloc}</span>
           <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos</button>
         </div>
       </div>
 
       <div ref={gridContainerRef} className="grid-container" onScroll={handleScroll}>
-        {visiblePhotos.map((item) => (
+        <div style={{ height: `${virtualData.topSpacer}px`, width: '100%' }}></div>
+        {virtualData.items.map((item) => (
           <div
             key={item.photo.id}
             className="tile"
@@ -254,6 +260,7 @@ export default function App() {
             />
           </div>
         ))}
+        <div style={{ height: `${virtualData.bottomSpacer}px`, width: '100%' }}></div>
       </div>
 
       {isLightboxOpen && currentPhotoIndex >= 0 && (

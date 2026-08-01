@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:8880';
 const preloadedCache = new Set();
+const preloadedOrder = [];
+const MAX_PRELOAD_CACHE = 50;
 
 export default function App() {
   const [photos, setPhotos] = useState([]);
@@ -50,7 +52,12 @@ export default function App() {
       ? (photo.original_url || photo.micro_url)
       : `${API_BASE}${photo.original_url || photo.micro_url}`;
     if (!preloadedCache.has(url)) {
+      if (preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+        const oldest = preloadedOrder.shift();
+        preloadedCache.delete(oldest);
+      }
       preloadedCache.add(url);
+      preloadedOrder.push(url);
       const img = new Image();
       img.src = url;
       if (img.decode) {
@@ -187,7 +194,7 @@ export default function App() {
             <p style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Next / React Ecosystem • Port 8884</p>
           </div>
         </div>
-        <div style={{ display: 'flex', items: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | RAM: {ramAlloc}</span>
           <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos</button>
         </div>

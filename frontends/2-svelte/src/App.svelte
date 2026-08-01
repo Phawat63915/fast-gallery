@@ -9,6 +9,8 @@
   let wheelThrottleTimer = 0;
   let fileInput;
   const preloadedCache = new Set();
+  const preloadedOrder = [];
+  const MAX_PRELOAD_CACHE = 50;
 
   const API_BASE = 'http://localhost:8880';
 
@@ -55,7 +57,12 @@
       ? (photo.original_url || photo.micro_url)
       : `${API_BASE}${photo.original_url || photo.micro_url}`;
     if (!preloadedCache.has(url)) {
+      if (preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+        const oldest = preloadedOrder.shift();
+        preloadedCache.delete(oldest);
+      }
       preloadedCache.add(url);
+      preloadedOrder.push(url);
       const img = new Image();
       img.src = url;
       if (img.decode) {

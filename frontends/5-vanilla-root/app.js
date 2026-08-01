@@ -4,10 +4,11 @@
     photos: [], layoutRows: [], totalGridHeight: 0, nextCursor: 0, hasMore: true, isLoading: false,
     currentPhotoIndex: -1, wheelThrottleTimer: 0,
     fps: 60, frameCount: 0, lastFpsTime: performance.now(), activeNodes: new Map(),
-    preloadedCache: new Set(),
+    preloadedCache: new Set(), preloadedOrder: [],
   };
 
   const API_BASE = 'http://localhost:8880';
+  const MAX_PRELOAD_CACHE = 50;
 
   const scrollContainer = document.getElementById('scroll-container');
   const virtualGrid = document.getElementById('virtual-grid');
@@ -171,7 +172,12 @@
       ? (photo.original_url || photo.micro_url)
       : `${API_BASE}${photo.original_url || photo.micro_url}`;
     if (!state.preloadedCache.has(url)) {
+      if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+        const oldest = state.preloadedOrder.shift();
+        state.preloadedCache.delete(oldest);
+      }
       state.preloadedCache.add(url);
+      state.preloadedOrder.push(url);
       const img = new Image();
       img.src = url;
       if (img.decode) {

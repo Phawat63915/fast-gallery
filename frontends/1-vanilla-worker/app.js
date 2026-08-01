@@ -1,5 +1,5 @@
 // FastGallery Stack 1: Vanilla JS + Web Worker Engine
-// Features: Predictive Directional Image Prefetching (5-Step Ahead Queue), DOM Node Recycling, Thumbhash Canvas
+// Features: LRU Memory Cache Eviction (Max 50 images), Predictive 5-Step Prefetching, DOM Recycling
 
 (function () {
   'use strict';
@@ -14,7 +14,7 @@
     
     currentPhotoIndex: -1,
     wheelThrottleTimer: 0,
-    lastDirection: 1, // 1 = forward, -1 = backward
+    lastDirection: 1,
     
     fps: 60,
     frameCount: 0,
@@ -22,9 +22,11 @@
     
     activeNodes: new Map(),
     preloadedCache: new Set(),
+    preloadedOrder: [], // LRU Queue
   };
 
   const API_BASE = 'http://localhost:8880';
+  const MAX_PRELOAD_CACHE = 50; // Cap RAM usage to prevent GC stutter
 
   const scrollContainer = document.getElementById('scroll-container');
   const virtualGrid = document.getElementById('virtual-grid');
@@ -213,17 +215,15 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  // Predictive Directional Prefetch Engine (5 Steps Ahead)
+  // Predictive Directional Prefetch Engine with LRU Memory Eviction
   function predictAndPrefetch(currentIndex, direction = 1, windowAhead = 5, windowBehind = 2) {
     if (!state.photos || state.photos.length === 0) return;
 
-    // High Priority: Prefetch 5 images in the movement direction
     for (let step = 1; step <= windowAhead; step++) {
       const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
       prefetchSingleUrl(state.photos[targetIdx]);
     }
 
-    // Low Priority: Prefetch 2 images behind
     for (let step = 1; step <= windowBehind; step++) {
       const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
       prefetchSingleUrl(state.photos[targetIdx]);
@@ -237,7 +237,15 @@
       : `${API_BASE}${photo.original_url || photo.micro_url}`;
 
     if (!state.preloadedCache.has(url)) {
+      // LRU Eviction: Remove oldest image from cache if limit reached
+      if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+        const oldestUrl = state.preloadedOrder.shift();
+        state.preloadedCache.delete(oldestUrl);
+      }
+
       state.preloadedCache.add(url);
+      state.preloadedOrder.push(url);
+
       const img = new Image();
       img.src = url;
       if (img.decode) {
@@ -267,8 +275,6 @@
     if (exifRes) exifRes.textContent = `${photo.width} x ${photo.height}`;
 
     lightboxModal.classList.remove('hidden');
-
-    // Trigger predictive prefetching 5 steps ahead in movement direction
     predictAndPrefetch(index, direction, 5, 2);
   }
 

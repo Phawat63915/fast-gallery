@@ -243,6 +243,12 @@ func (db *DB) GetPhotoCount() (int, error) {
 	return count, err
 }
 
+func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.conn.Exec(query, args...)
+}
+
 func (db *DB) Close() error {
 	return db.conn.Close()
 }

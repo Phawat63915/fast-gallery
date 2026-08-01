@@ -136,4 +136,7 @@ func TestAPIUploadPhoto(t *testing.T) {
 	if result["success"] != true {
 		t.Errorf("Expected success = true, got %v", result["success"])
 	}
+
+	// Clean up dummy test assets created during testing
+	database.Exec("DELETE FROM photos WHERE id LIKE 'up_%' OR id LIKE 'test_%'")
 }

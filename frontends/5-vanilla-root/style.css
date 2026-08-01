@@ -51,10 +51,7 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   pointer-events: none !important;
 }
 
-.scroll-container.fast-scrolling .photo-card img.real-img {
-  opacity: 0 !important;
-  transition: none !important;
-}
+.photo-card img.real-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 1; will-change: transform; }
 
 .virtual-grid { position: relative; width: 100%; min-height: 100%; }
 

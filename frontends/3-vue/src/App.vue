@@ -288,11 +288,6 @@ function handleKeydown(e) {
   pointer-events: none !important;
 }
 
-.grid-container.fast-scrolling .tile img {
-  opacity: 0 !important;
-  transition: none !important;
-}
-
 .tile {
   height: 220px;
   flex-grow: 1;

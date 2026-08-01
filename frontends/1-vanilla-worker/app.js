@@ -21,8 +21,19 @@
     lastFpsTime: performance.now(),
     
     activeNodes: new Map(),
+    nodePool: [],
     preloadedCache: new Set(),
     preloadedOrder: [],
+
+    // Lightbox Zoom & Pan State
+    zoomScale: 1.0,
+    zoomX: 0,
+    zoomY: 0,
+    isDragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    lastZoomX: 0,
+    lastZoomY: 0,
   };
 
   const API_BASE = 'http://localhost:8880';
@@ -43,6 +54,7 @@
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxCounter = document.getElementById('lightbox-counter');
   const lightboxFilename = document.getElementById('lightbox-filename');
+  const btnZoomToggle = document.getElementById('btn-zoom-toggle');
   const btnExifToggle = document.getElementById('btn-exif-toggle');
   const btnCloseLightbox = document.getElementById('btn-close-lightbox');
   const btnPrevPhoto = document.getElementById('btn-prev-photo');
@@ -118,6 +130,22 @@
     });
   }
 
+  function binarySearchStartRow(rows, startY) {
+    let low = 0;
+    let high = rows.length - 1;
+    let result = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (rows[mid].y + rows[mid].height >= startY) {
+        result = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    return result;
+  }
+
   function renderVirtualGrid() {
     if (!state.layoutRows || state.layoutRows.length === 0) return;
 
@@ -128,18 +156,18 @@
       fetchPhotos(true);
     }
 
-    const buffer = 2000;
+    const buffer = 2600;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
 
     const visibleItems = [];
+    const startRowIdx = binarySearchStartRow(state.layoutRows, startY);
 
-    for (let r = 0; r < state.layoutRows.length; r++) {
+    for (let r = startRowIdx; r < state.layoutRows.length; r++) {
       const row = state.layoutRows[r];
-      if (row.y + row.height >= startY && row.y <= endY) {
-        for (let i = 0; i < row.items.length; i++) {
-          visibleItems.push(row.items[i]);
-        }
+      if (row.y > endY) break;
+      for (let i = 0; i < row.items.length; i++) {
+        visibleItems.push(row.items[i]);
       }
     }
 
@@ -269,9 +297,42 @@
     }
   }
 
+  function updateZoomTransform() {
+    if (!lightboxImg) return;
+    if (state.zoomScale <= 1.0) {
+      state.zoomScale = 1.0;
+      state.zoomX = 0;
+      state.zoomY = 0;
+    }
+    lightboxImg.style.transform = `translate3d(${state.zoomX}px, ${state.zoomY}px, 0) scale(${state.zoomScale})`;
+  }
+
+  function resetZoom() {
+    state.zoomScale = 1.0;
+    state.zoomX = 0;
+    state.zoomY = 0;
+    state.isDragging = false;
+    if (lightboxImg) {
+      lightboxImg.classList.remove('is-dragging');
+      updateZoomTransform();
+    }
+  }
+
+  function toggleZoom() {
+    if (state.zoomScale > 1.0) {
+      resetZoom();
+    } else {
+      state.zoomScale = 2.5;
+      state.zoomX = 0;
+      state.zoomY = 0;
+      updateZoomTransform();
+    }
+  }
+
   // Realtime 0ms Instant Image Swap
   function openLightbox(index, direction = 1) {
     if (index < 0 || index >= state.photos.length) return;
+    resetZoom();
     state.currentPhotoIndex = index;
     state.lastDirection = direction;
 
@@ -298,6 +359,7 @@
   }
 
   function closeLightbox() {
+    resetZoom();
     lightboxModal.classList.add('hidden');
     lightboxImg.src = '';
     state.currentPhotoIndex = -1;
@@ -370,7 +432,54 @@
 
     window.addEventListener('resize', computeLayout);
 
-    lightboxModal.addEventListener('wheel', handleLightboxWheel, { passive: false });
+    lightboxModal.addEventListener('wheel', (e) => {
+      if (state.zoomScale > 1.0 || e.ctrlKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.25 : -0.25;
+        state.zoomScale = Math.max(1.0, Math.min(5.0, state.zoomScale + delta));
+        updateZoomTransform();
+      } else {
+        handleLightboxWheel(e);
+      }
+    }, { passive: false });
+
+    if (btnZoomToggle) {
+      btnZoomToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleZoom();
+      });
+    }
+
+    if (lightboxImg) {
+      lightboxImg.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        toggleZoom();
+      });
+
+      lightboxImg.addEventListener('mousedown', (e) => {
+        if (state.zoomScale <= 1.0) return;
+        e.preventDefault();
+        state.isDragging = true;
+        state.dragStartX = e.clientX - state.zoomX;
+        state.dragStartY = e.clientY - state.zoomY;
+        lightboxImg.classList.add('is-dragging');
+      });
+    }
+
+    window.addEventListener('mousemove', (e) => {
+      if (!state.isDragging) return;
+      e.preventDefault();
+      state.zoomX = e.clientX - state.dragStartX;
+      state.zoomY = e.clientY - state.dragStartY;
+      updateZoomTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (state.isDragging) {
+        state.isDragging = false;
+        if (lightboxImg) lightboxImg.classList.remove('is-dragging');
+      }
+    });
 
     if (btnPrevPhoto) {
       btnPrevPhoto.addEventListener('click', (e) => {

@@ -44,16 +44,19 @@
     } catch (e) {}
   }
 
+  // Ultra-Fast Inertia Virtualizer: Huge 12-Row Buffer (2,600px) prevents scroll lock during fast flings
   let virtualData = $derived.by(() => {
     if (!photos || photos.length === 0) return { items: [], topSpacer: 0, bottomSpacer: 0 };
     const rowHeight = 223;
     const itemsPerRow = 4;
-    const bufferRows = 3;
+    const bufferRows = 12; // 12-row buffer (~2,600px) for ultra-fast scrolling
     const totalRows = Math.ceil(photos.length / itemsPerRow);
 
     const currentLine = Math.floor(scrollTop / rowHeight);
+    const visibleLines = Math.ceil(viewportHeight / rowHeight);
+
     const startRow = Math.max(0, currentLine - bufferRows);
-    const endRow = Math.min(totalRows, Math.ceil((scrollTop + viewportHeight) / rowHeight) + bufferRows);
+    const endRow = Math.min(totalRows, currentLine + visibleLines + bufferRows);
 
     const startIdx = startRow * itemsPerRow;
     const endIdx = Math.min(photos.length, endRow * itemsPerRow);
@@ -195,8 +198,6 @@
     flex-wrap: wrap;
     gap: 3px;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-    overscroll-behavior-y: contain;
     will-change: scroll-position;
   }
   

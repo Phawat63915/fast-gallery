@@ -82,7 +82,7 @@
     if (!state.layoutRows || state.layoutRows.length === 0) return;
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = scrollContainer.clientHeight;
-    const buffer = 400;
+    const buffer = 2000;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
     const visibleItems = [];

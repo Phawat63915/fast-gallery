@@ -90,12 +90,14 @@ const virtualData = computed(() => {
   if (!photos.value || photos.value.length === 0) return { items: [], topSpacer: 0, bottomSpacer: 0 };
   const rowHeight = 223;
   const itemsPerRow = 4;
-  const bufferRows = 3;
+  const bufferRows = 12; // 12-row buffer (~2,600px) for ultra-fast scrolling
   const totalRows = Math.ceil(photos.value.length / itemsPerRow);
 
   const currentLine = Math.floor(scrollTop.value / rowHeight);
+  const visibleLines = Math.ceil(viewportHeight.value / rowHeight);
+
   const startRow = Math.max(0, currentLine - bufferRows);
-  const endRow = Math.min(totalRows, Math.ceil((scrollTop.value + viewportHeight.value) / rowHeight) + bufferRows);
+  const endRow = Math.min(totalRows, currentLine + visibleLines + bufferRows);
 
   const startIdx = startRow * itemsPerRow;
   const endIdx = Math.min(photos.value.length, endRow * itemsPerRow);
@@ -252,8 +254,6 @@ function handleKeydown(e) {
   flex-wrap: wrap;
   gap: 3px;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior-y: contain;
   will-change: scroll-position;
 }
 

@@ -253,15 +253,15 @@
     ctx.fillRect(0, 0, 32, 32);
   }
 
-  // Off-Thread Idle Prefetching (0ms Blocking Delay)
+  // Off-Thread Idle Prefetching (0ms Blocking Delay - 15 Photos Ahead / 8 Behind)
   function scheduleIdlePrefetch(currentIndex, direction = 1) {
     const runPrefetch = () => {
       if (!state.photos || state.photos.length === 0) return;
-      for (let step = 1; step <= 5; step++) {
+      for (let step = 1; step <= 15; step++) {
         const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
         prefetchSingleUrl(state.photos[targetIdx]);
       }
-      for (let step = 1; step <= 2; step++) {
+      for (let step = 1; step <= 8; step++) {
         const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
         prefetchSingleUrl(state.photos[targetIdx]);
       }
@@ -276,34 +276,35 @@
 
   function prefetchSingleUrl(photo) {
     if (!photo) return;
-    const url = (photo.original_url || photo.micro_url).startsWith('http')
-      ? (photo.original_url || photo.micro_url)
-      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    const urls = [
+      photo.original_url ? (photo.original_url.startsWith('http') ? photo.original_url : `${API_BASE}${photo.original_url}`) : null,
+      photo.micro_url ? (photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`) : null,
+    ].filter(Boolean);
 
-    if (!state.preloadedCache.has(url)) {
-      if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
-        const oldestUrl = state.preloadedOrder.shift();
-        state.preloadedCache.delete(oldestUrl);
-      }
+    for (let url of urls) {
+      if (!state.preloadedCache.has(url)) {
+        if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+          const oldestUrl = state.preloadedOrder.shift();
+          state.preloadedCache.delete(oldestUrl);
+        }
+        state.preloadedCache.add(url);
+        state.preloadedOrder.push(url);
 
-      state.preloadedCache.add(url);
-      state.preloadedOrder.push(url);
-
-      const img = new Image();
-      img.src = url;
-      if (img.decode) {
-        img.decode().catch(() => {});
+        const img = new Image();
+        img.src = url;
+        if (img.decode) img.decode().catch(() => {});
       }
     }
   }
 
-  function updateZoomTransform() {
+  function updateZoomTransform(animate = false) {
     if (!lightboxImg) return;
     if (state.zoomScale <= 1.0) {
       state.zoomScale = 1.0;
       state.zoomX = 0;
       state.zoomY = 0;
     }
+    lightboxImg.style.transition = animate ? 'transform 0.12s ease-out' : 'none';
     lightboxImg.style.transform = `translate3d(${state.zoomX}px, ${state.zoomY}px, 0) scale(${state.zoomScale})`;
   }
 
@@ -313,8 +314,9 @@
     state.zoomY = 0;
     state.isDragging = false;
     if (lightboxImg) {
+      lightboxImg.style.transition = 'none';
       lightboxImg.classList.remove('is-dragging');
-      updateZoomTransform();
+      lightboxImg.style.transform = 'translate3d(0px, 0px, 0px) scale(1)';
     }
   }
 
@@ -325,7 +327,7 @@
       state.zoomScale = 2.5;
       state.zoomX = 0;
       state.zoomY = 0;
-      updateZoomTransform();
+      updateZoomTransform(true);
     }
   }
 

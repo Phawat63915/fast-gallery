@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Compiled Binaries
+backend/server
+*.exe
+*.exe.manifest
+*.dll
+*.so
+*.dylib
+
+# Database & Generated Upload Data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/originals/*
+data/thumbnails/*
+!data/originals/.gitkeep
+!data/thumbnails/.gitkeep
+
+# Build Outputs
+dist/
+build/
+.output/
+.vite/
+
+# Logs & Temporary Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/

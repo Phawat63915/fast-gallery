@@ -1,0 +1,9 @@
+{
+  "name": "fastgallery-vanilla-root",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes serve . -p 8885 --single"
+  }
+}

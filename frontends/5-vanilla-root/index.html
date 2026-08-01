@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stack 5: Vanilla Root Classic (FastGallery Original)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo-icon">5️⃣</div>
+      <div class="brand-text">
+        <h1>FastGallery <span>Stack 5: Vanilla Root Classic</span></h1>
+        <p class="subtitle">Original Root Frontend • Port 8885</p>
+      </div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-pill"><span class="stat-label">Photos:</span> <span id="stat-total" class="stat-val">0</span></div>
+      <div class="stat-pill"><span class="stat-label">FPS:</span> <span id="stat-fps" class="stat-val highlight">60</span></div>
+      <div class="stat-pill"><span class="stat-label">Go RAM:</span> <span id="stat-ram" class="stat-val">-- MB</span></div>
+      <div class="stat-pill"><span class="stat-label">DOM Nodes:</span> <span id="stat-dom" class="stat-val">36</span></div>
+    </div>
+    <div class="header-actions">
+      <button id="btn-upload-trigger" class="btn btn-primary">Upload Photos</button>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <div class="control-bar">
+      <div class="time-filter">
+        <button class="chip active">Classic Root Grid</button>
+      </div>
+      <div class="tech-badge"><span>Port 8885 • PostgreSQL 16</span></div>
+    </div>
+    <div id="scroll-container" class="scroll-container">
+      <div id="virtual-grid" class="virtual-grid"></div>
+    </div>
+  </main>
+
+  <div id="lightbox-modal" class="lightbox-modal hidden">
+    <div class="lightbox-bar">
+      <div id="lightbox-counter" class="lightbox-counter">1 / 500</div>
+      <div class="lightbox-actions">
+        <button id="btn-close-lightbox" class="icon-btn">&times;</button>
+      </div>
+    </div>
+    <div class="lightbox-body">
+      <button id="btn-prev-photo" class="nav-arrow nav-prev">&#10094;</button>
+      <div id="lightbox-stage" class="lightbox-stage">
+        <div id="lightbox-img-wrapper" class="lightbox-img-wrapper">
+          <img id="lightbox-img" src="" alt="Fullscreen asset">
+        </div>
+      </div>
+      <button id="btn-next-photo" class="nav-arrow nav-next">&#10095;</button>
+      <aside id="exif-drawer" class="exif-drawer">
+        <h4 id="exif-title">Photo Title</h4>
+        <p id="exif-date" class="exif-sub">Date taken</p>
+      </aside>
+    </div>
+  </div>
+
+  <div id="upload-modal" class="modal-backdrop hidden">
+    <div class="upload-card">
+      <div class="upload-header"><h3>Upload Media</h3><button id="btn-close-upload" class="close-btn">&times;</button></div>
+      <div id="drop-zone" class="drop-zone"><div class="drop-icon">📤</div><h4>Drag & Drop photos here</h4><input type="file" id="file-input" multiple accept="image/*" class="hidden-input"></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

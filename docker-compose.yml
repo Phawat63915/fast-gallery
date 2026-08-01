@@ -9,6 +9,15 @@ services:
       POSTGRES_DB: fastgallery
     ports:
       - "5432:5432"
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=16MB
+      -c effective_cache_size=1GB
+      -c wal_buffers=16MB
+      -c max_worker_processes=8
+      -c max_parallel_workers_per_gather=4
+      -c autovacuum_vacuum_scale_factor=0.05
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

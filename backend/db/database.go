@@ -125,6 +125,8 @@ func (db *DB) migrateSchema() error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_id ON photos (created_at DESC, id);
+		CREATE EXTENSION IF NOT EXISTS pg_trgm;
+		CREATE INDEX IF NOT EXISTS idx_photos_title_trgm ON photos USING gin (title gin_trgm_ops);
 		`
 	} else {
 		schema = `

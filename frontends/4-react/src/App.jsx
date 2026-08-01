@@ -68,14 +68,35 @@ export default function App() {
   }, [photos, scrollTop, viewportHeight]);
 
   const [isScrolling, setIsScrolling] = useState(false);
+  const [isFastScrolling, setIsFastScrolling] = useState(false);
   const isScrollingTimer = useRef(null);
+  const lastScrollTop = useRef(0);
+  const lastScrollTime = useRef(typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   function handleScroll(e) {
-    setScrollTop(e.target.scrollTop);
+    const currentScrollTop = e.target.scrollTop;
+    setScrollTop(currentScrollTop);
+
+    const now = performance.now();
+    const dt = now - lastScrollTime.current;
+    let velocity = 0;
+    if (dt > 0) {
+      velocity = Math.abs(currentScrollTop - lastScrollTop.current) / dt;
+    }
+    lastScrollTop.current = currentScrollTop;
+    lastScrollTime.current = now;
+
     if (!isScrolling) setIsScrolling(true);
+    if (velocity > 2.0) {
+      if (!isFastScrolling) setIsFastScrolling(true);
+    } else {
+      if (isFastScrolling) setIsFastScrolling(false);
+    }
+
     clearTimeout(isScrollingTimer.current);
     isScrollingTimer.current = setTimeout(() => {
       setIsScrolling(false);
+      setIsFastScrolling(false);
     }, 150);
   }
 
@@ -215,6 +236,11 @@ export default function App() {
           pointer-events: none !important;
         }
 
+        .grid-container.fast-scrolling .tile img {
+          opacity: 0 !important;
+          transition: none !important;
+        }
+
         .tile {
           height: 220px;
           flex-grow: 1;
@@ -256,7 +282,7 @@ export default function App() {
         </div>
       </div>
 
-      <div ref={gridContainerRef} className={`grid-container ${isScrolling ? 'is-scrolling' : ''}`} onScroll={handleScroll}>
+      <div ref={gridContainerRef} className={`grid-container ${isScrolling ? 'is-scrolling' : ''} ${isFastScrolling ? 'fast-scrolling' : ''}`} onScroll={handleScroll}>
         <div style={{ height: `${virtualData.topSpacer}px`, width: '100%' }}></div>
         {virtualData.items.map((item) => (
           <div

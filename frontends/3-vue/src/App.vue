@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  <div ref="gridContainer" class="grid-container" :class="{ 'is-scrolling': isScrolling }" @scroll="handleScroll">
+  <div ref="gridContainer" class="grid-container" :class="{ 'is-scrolling': isScrolling, 'fast-scrolling': isFastScrolling }" @scroll="handleScroll">
     <div :style="{ height: virtualData.topSpacer + 'px', width: '100%' }"></div>
     <div
       v-for="item in virtualData.items"
@@ -114,14 +114,33 @@ const virtualData = computed(() => {
 });
 
 const isScrolling = ref(false);
+const isFastScrolling = ref(false);
 let isScrollingTimer = null;
+let lastScrollTop = 0;
+let lastScrollTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
 function handleScroll(e) {
   scrollTop.value = e.target.scrollTop;
+  const now = performance.now();
+  const dt = now - lastScrollTime;
+  let velocity = 0;
+  if (dt > 0) {
+    velocity = Math.abs(scrollTop.value - lastScrollTop) / dt;
+  }
+  lastScrollTop = scrollTop.value;
+  lastScrollTime = now;
+
   if (!isScrolling.value) isScrolling.value = true;
+  if (velocity > 2.0) {
+    if (!isFastScrolling.value) isFastScrolling.value = true;
+  } else {
+    if (isFastScrolling.value) isFastScrolling.value = false;
+  }
+
   clearTimeout(isScrollingTimer);
   isScrollingTimer = setTimeout(() => {
     isScrolling.value = false;
+    isFastScrolling.value = false;
   }, 150);
 }
 
@@ -267,6 +286,11 @@ function handleKeydown(e) {
 
 .grid-container.is-scrolling .tile {
   pointer-events: none !important;
+}
+
+.grid-container.fast-scrolling .tile img {
+  opacity: 0 !important;
+  transition: none !important;
 }
 
 .tile {

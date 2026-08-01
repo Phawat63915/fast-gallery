@@ -222,14 +222,38 @@
   }
 
   let isScrollingTimer = null;
+  let lastScrollTop = 0;
+  let lastScrollTime = performance.now();
+
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
+      const now = performance.now();
+      const dt = now - lastScrollTime;
+      let velocity = 0;
+      if (dt > 0) {
+        velocity = Math.abs(scrollContainer.scrollTop - lastScrollTop) / dt;
+      }
+      lastScrollTop = scrollContainer.scrollTop;
+      lastScrollTime = now;
+
       if (!scrollContainer.classList.contains('is-scrolling')) {
         scrollContainer.classList.add('is-scrolling');
       }
+
+      if (velocity > 2.0) {
+        if (!scrollContainer.classList.contains('fast-scrolling')) {
+          scrollContainer.classList.add('fast-scrolling');
+        }
+      } else {
+        if (scrollContainer.classList.contains('fast-scrolling')) {
+          scrollContainer.classList.remove('fast-scrolling');
+        }
+      }
+
       clearTimeout(isScrollingTimer);
       isScrollingTimer = setTimeout(() => {
         scrollContainer.classList.remove('is-scrolling');
+        scrollContainer.classList.remove('fast-scrolling');
       }, 150);
 
       requestAnimationFrame(renderVirtualGrid);

@@ -73,14 +73,33 @@
   });
 
   let isScrolling = $state(false);
+  let isFastScrolling = $state(false);
   let isScrollingTimer;
+  let lastScrollTop = 0;
+  let lastScrollTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
   function handleScroll(e) {
     scrollTop = e.target.scrollTop;
+    const now = performance.now();
+    const dt = now - lastScrollTime;
+    let velocity = 0;
+    if (dt > 0) {
+      velocity = Math.abs(scrollTop - lastScrollTop) / dt;
+    }
+    lastScrollTop = scrollTop;
+    lastScrollTime = now;
+
     if (!isScrolling) isScrolling = true;
+    if (velocity > 2.0) {
+      if (!isFastScrolling) isFastScrolling = true;
+    } else {
+      if (isFastScrolling) isFastScrolling = false;
+    }
+
     clearTimeout(isScrollingTimer);
     isScrollingTimer = setTimeout(() => {
       isScrolling = false;
+      isFastScrolling = false;
     }, 150);
   }
 
@@ -212,6 +231,11 @@
   .grid-container.is-scrolling .tile {
     pointer-events: none !important;
   }
+
+  .grid-container.fast-scrolling .tile img {
+    opacity: 0 !important;
+    transition: none !important;
+  }
   
   .tile {
     height: 220px;
@@ -254,7 +278,7 @@
   </div>
 </div>
 
-<div class="grid-container" class:is-scrolling={isScrolling} bind:this={gridContainer} onscroll={handleScroll}>
+<div class="grid-container" class:is-scrolling={isScrolling} class:fast-scrolling={isFastScrolling} bind:this={gridContainer} onscroll={handleScroll}>
   <div style="height: {virtualData.topSpacer}px; width: 100%;"></div>
   {#each virtualData.items as item (item.photo.id)}
     <div class="tile" style="width: {220 * (item.photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(item.globalIndex)}>

@@ -76,7 +76,14 @@ export default function App() {
   }, [photos, scrollTop, viewportHeight]);
 
   function handleScroll(e) {
-    setScrollTop(e.target.scrollTop);
+    const currentScrollTop = e.target.scrollTop;
+    setScrollTop(currentScrollTop);
+    const currentContainerHeight = e.target.clientHeight || 800;
+    const totalScrollHeight = e.target.scrollHeight || 1;
+
+    if (currentScrollTop + currentContainerHeight >= totalScrollHeight - 1500 && hasMorePhotosRef.current && !isLoadingMoreRef.current) {
+      fetchPhotos(true);
+    }
   }
 
   function scheduleIdlePrefetch(index, direction = 1) {
@@ -119,13 +126,29 @@ export default function App() {
     }
   }
 
-  async function fetchPhotos() {
+  const nextCursorRef = useRef(0);
+  const hasMorePhotosRef = useRef(true);
+  const isLoadingMoreRef = useRef(false);
+
+  async function fetchPhotos(isAppend = false) {
+    if (isLoadingMoreRef.current || (isAppend && !hasMorePhotosRef.current)) return;
+    isLoadingMoreRef.current = true;
+
     try {
-      const res = await fetch(`${API_BASE}/api/photos?limit=200`);
+      const url = `${API_BASE}/api/photos?limit=500${nextCursorRef.current ? `&cursor=${nextCursorRef.current}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
-      setPhotos(data.photos || []);
+      const newPhotos = data.photos || [];
+
+      if (newPhotos.length < 500 || !data.next_cursor) {
+        hasMorePhotosRef.current = false;
+      }
+      nextCursorRef.current = data.next_cursor || 0;
+      setPhotos((prev) => (isAppend ? [...prev, ...newPhotos] : newPhotos));
     } catch (e) {
       console.error(e);
+    } finally {
+      isLoadingMoreRef.current = false;
     }
   }
 
@@ -214,6 +237,11 @@ export default function App() {
   function navigate(dir) {
     if (currentPhotoIndex < 0) return;
     let next = currentPhotoIndex + dir;
+
+    if (next >= photos.length - 5 && hasMorePhotosRef.current && !isLoadingMoreRef.current) {
+      fetchPhotos(true);
+    }
+
     if (next < 0) next = photos.length - 1;
     if (next >= photos.length) next = 0;
     openLightbox(next, dir);

@@ -33,13 +33,29 @@
     }
   });
 
-  async function fetchPhotos() {
+  let nextCursor = 0;
+  let hasMorePhotos = true;
+  let isLoadingMore = false;
+
+  async function fetchPhotos(isAppend = false) {
+    if (isLoadingMore || (isAppend && !hasMorePhotos)) return;
+    isLoadingMore = true;
+
     try {
-      const res = await fetch(`${API_BASE}/api/photos?limit=200`);
+      const url = `${API_BASE}/api/photos?limit=500${nextCursor ? `&cursor=${nextCursor}` : ''}`;
+      const res = await fetch(url);
       const data = await res.json();
-      photos = data.photos || [];
+      const newPhotos = data.photos || [];
+
+      if (newPhotos.length < 500 || !data.next_cursor) {
+        hasMorePhotos = false;
+      }
+      nextCursor = data.next_cursor || 0;
+      photos = isAppend ? [...photos, ...newPhotos] : newPhotos;
     } catch (e) {
       console.error(e);
+    } finally {
+      isLoadingMore = false;
     }
   }
 
@@ -80,6 +96,12 @@
 
   function handleScroll(e) {
     scrollTop = e.target.scrollTop;
+    const currentContainerHeight = e.target.clientHeight || 800;
+    const totalScrollHeight = e.target.scrollHeight || 1;
+
+    if (scrollTop + currentContainerHeight >= totalScrollHeight - 1500 && hasMorePhotos && !isLoadingMore) {
+      fetchPhotos(true);
+    }
   }
 
   function scheduleIdlePrefetch(index, direction = 1) {
@@ -198,6 +220,11 @@
   function navigate(dir) {
     if (currentPhotoIndex < 0) return;
     let next = currentPhotoIndex + dir;
+
+    if (next >= photos.length - 5 && hasMorePhotos && !isLoadingMore) {
+      fetchPhotos(true);
+    }
+
     if (next < 0) next = photos.length - 1;
     if (next >= photos.length) next = 0;
     openLightbox(next, dir);

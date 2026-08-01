@@ -71,11 +71,11 @@
   }
 
   async function fetchPhotos(isAppend = false) {
-    if (state.isLoading || (!state.hasMore && isAppend)) return;
+    if (state.isLoading || (isAppend && !state.hasMore)) return;
     state.isLoading = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=200${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
+      const url = `${API_BASE}/api/photos?limit=500${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
       const res = await fetch(url);
       const data = await res.json();
 
@@ -83,6 +83,9 @@
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
         state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
+        if (data.photos.length < 500 || !data.next_cursor) {
+          state.hasMore = false;
+        }
         computeLayout();
       } else {
         state.hasMore = false;
@@ -117,6 +120,10 @@
 
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = scrollContainer.clientHeight;
+
+    if (scrollTop + viewportHeight >= state.totalGridHeight - 1500 && state.hasMore && !state.isLoading) {
+      fetchPhotos(true);
+    }
 
     const buffer = 2000;
     const startY = Math.max(0, scrollTop - buffer);
@@ -288,14 +295,17 @@
     state.currentPhotoIndex = -1;
   }
 
-  function navigateLightbox(dir) {
+  function navigateLightbox(direction) {
     if (state.currentPhotoIndex < 0) return;
-    let next = state.currentPhotoIndex + dir;
+    let nextIndex = state.currentPhotoIndex + direction;
 
-    if (next < 0) next = state.photos.length - 1;
-    if (next >= state.photos.length) next = 0;
+    if (nextIndex >= state.photos.length - 5 && state.hasMore && !state.isLoading) {
+      fetchPhotos(true);
+    }
 
-    openLightbox(next, dir);
+    if (nextIndex < 0) nextIndex = state.photos.length - 1;
+    if (nextIndex >= state.photos.length) nextIndex = 0;
+    openLightbox(nextIndex, direction);
   }
 
   // Realtime Zero-Latency Wheel Handler (Native Trackpad Sync)

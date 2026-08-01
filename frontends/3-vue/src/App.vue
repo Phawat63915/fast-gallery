@@ -135,15 +135,37 @@ const virtualData = computed(() => {
 
 function handleScroll(e) {
   scrollTop.value = e.target.scrollTop;
+  const currentContainerHeight = e.target.clientHeight || 800;
+  const totalScrollHeight = e.target.scrollHeight || 1;
+
+  if (scrollTop.value + currentContainerHeight >= totalScrollHeight - 1500 && hasMorePhotos && !isLoadingMore) {
+    fetchPhotos(true);
+  }
 }
 
-async function fetchPhotos() {
+let nextCursor = 0;
+let hasMorePhotos = true;
+let isLoadingMore = false;
+
+async function fetchPhotos(isAppend = false) {
+  if (isLoadingMore || (isAppend && !hasMorePhotos)) return;
+  isLoadingMore = true;
+
   try {
-    const res = await fetch(`${API_BASE}/api/photos?limit=200`);
+    const url = `${API_BASE}/api/photos?limit=500${nextCursor ? `&cursor=${nextCursor}` : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
-    photos.value = data.photos || [];
+    const newPhotos = data.photos || [];
+
+    if (newPhotos.length < 500 || !data.next_cursor) {
+      hasMorePhotos = false;
+    }
+    nextCursor = data.next_cursor || 0;
+    photos.value = isAppend ? [...photos.value, ...newPhotos] : newPhotos;
   } catch (e) {
     console.error(e);
+  } finally {
+    isLoadingMore = false;
   }
 }
 
@@ -272,6 +294,11 @@ function closeLightbox() {
 function navigate(dir) {
   if (currentPhotoIndex.value < 0) return;
   let next = currentPhotoIndex.value + dir;
+
+  if (next >= photos.value.length - 5 && hasMorePhotos && !isLoadingMore) {
+    fetchPhotos(true);
+  }
+
   if (next < 0) next = photos.value.length - 1;
   if (next >= photos.value.length) next = 0;
   openLightbox(next, dir);

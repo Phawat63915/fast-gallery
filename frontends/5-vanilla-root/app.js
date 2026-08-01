@@ -59,10 +59,18 @@
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
         state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
+        if (data.photos.length < 500 || !data.next_cursor) {
+          state.hasMore = false;
+        }
         computeLayout();
-      } else { state.hasMore = false; }
-    } catch (err) { console.error('Failed to fetch photos:', err); }
-    finally { state.isLoading = false; }
+      } else {
+        state.hasMore = false;
+      }
+    } catch (e) {
+      console.error('Failed to fetch photos:', e);
+    } finally {
+      state.isLoading = false;
+    }
   }
 
   async function fetchServerStats() {
@@ -82,6 +90,11 @@
     if (!state.layoutRows || state.layoutRows.length === 0) return;
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = scrollContainer.clientHeight;
+    const totalScrollHeight = scrollContainer.scrollHeight || 1;
+
+    if (scrollTop + viewportHeight >= totalScrollHeight - 1500 && state.hasMore && !state.isLoading) {
+      fetchPhotos(true);
+    }
     const buffer = 2000;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
@@ -206,6 +219,11 @@
   function navigate(dir) {
     if (state.currentPhotoIndex < 0) return;
     let next = state.currentPhotoIndex + dir;
+
+    if (next >= state.photos.length - 5 && state.hasMore && !state.isLoading) {
+      fetchPhotos(true);
+    }
+
     if (next < 0) next = state.photos.length - 1;
     if (next >= state.photos.length) next = 0;
     openLightbox(next, dir);

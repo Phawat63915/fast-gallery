@@ -7,7 +7,11 @@
   let isUploadOpen = $state(false);
   let ramAlloc = $state('-- MB');
   let lastWheelTime = 0;
+  let scrollTop = $state(0);
+  let viewportHeight = $state(800);
+  let gridContainer;
   let fileInput;
+
   const preloadedCache = new Set();
   const preloadedOrder = [];
   const MAX_PRELOAD_CACHE = 50;
@@ -17,6 +21,9 @@
   onMount(async () => {
     await fetchPhotos();
     await fetchStats();
+    if (gridContainer) {
+      viewportHeight = gridContainer.clientHeight || 800;
+    }
   });
 
   async function fetchPhotos() {
@@ -35,6 +42,29 @@
       const data = await res.json();
       if (data.alloc_ram_mb) ramAlloc = data.alloc_ram_mb;
     } catch (e) {}
+  }
+
+  // Virtual Windowing Math: Only render items inside visible viewport buffer [scrollTop - 400, scrollTop + height + 400]
+  let visiblePhotos = $derived.by(() => {
+    if (!photos || photos.length === 0) return [];
+    // Estimate ~4-5 tiles per row (~220px height per row)
+    const rowHeight = 220;
+    const itemsPerRow = 4;
+    const buffer = 400;
+    const startRow = Math.max(0, Math.floor((scrollTop - buffer) / rowHeight));
+    const endRow = Math.ceil((scrollTop + viewportHeight + buffer) / rowHeight);
+    
+    const startIdx = Math.max(0, startRow * itemsPerRow);
+    const endIdx = Math.min(photos.length, endRow * itemsPerRow);
+    
+    return photos.slice(startIdx, endIdx).map((photo, offset) => ({
+      photo,
+      globalIndex: startIdx + offset
+    }));
+  });
+
+  function handleScroll(e) {
+    scrollTop = e.target.scrollTop;
   }
 
   function scheduleIdlePrefetch(index, direction = 1) {
@@ -123,7 +153,7 @@
     if (!isLightboxOpen) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - lastWheelTime < 10) return; // Realtime 10ms Trackpad sync
+    if (now - lastWheelTime < 10) return;
     lastWheelTime = now;
 
     const dir = (e.deltaY > 0 || e.deltaX > 0) ? 1 : -1;
@@ -151,6 +181,7 @@
   .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
   .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
   
+  /* GPU Hardware Accelerated Virtualized Grid Container */
   .grid-container {
     height: calc(100vh - 60px);
     overflow-y: auto;
@@ -159,7 +190,10 @@
     flex-wrap: wrap;
     gap: 3px;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
     will-change: scroll-position;
+    contain: layout paint;
   }
   
   .tile {
@@ -173,6 +207,8 @@
     will-change: transform;
     backface-visibility: hidden;
     transform: translateZ(0);
+    contain: strict;
+    content-visibility: auto;
   }
   
   .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
@@ -198,15 +234,15 @@
     </div>
   </div>
   <div style="display: flex; align-items: center; gap: 16px;">
-    <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {photos.length} | RAM: {ramAlloc}</span>
+    <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {photos.length} | Visible DOM: {visiblePhotos.length} | RAM: {ramAlloc}</span>
     <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload Photos</button>
   </div>
 </div>
 
-<div class="grid-container">
-  {#each photos as photo, i}
-    <div class="tile" style="width: {220 * (photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(i)}>
-      <img src={photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`} alt={photo.title} loading="lazy" />
+<div class="grid-container" bind:this={gridContainer} onscroll={handleScroll}>
+  {#each visiblePhotos as item (item.photo.id)}
+    <div class="tile" style="width: {220 * (item.photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(item.globalIndex)}>
+      <img src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`} alt={item.photo.title} loading="lazy" />
     </div>
   {/each}
 </div>

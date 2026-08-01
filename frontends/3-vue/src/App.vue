@@ -8,20 +8,20 @@
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 16px;">
-      <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | RAM: {{ ramAlloc }}</span>
+      <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | Visible DOM: {{ visiblePhotos.length }} | RAM: {{ ramAlloc }}</span>
       <button class="btn-upload" @click="isUploadOpen = true">Upload Photos</button>
     </div>
   </div>
 
-  <div class="grid-container">
+  <div ref="gridContainer" class="grid-container" @scroll="handleScroll">
     <div
-      v-for="(photo, index) in photos"
-      :key="photo.id"
+      v-for="item in visiblePhotos"
+      :key="item.photo.id"
       class="tile"
-      :style="{ width: (220 * (photo.aspect_ratio || 1.5)) + 'px' }"
-      @click="openLightbox(index)"
+      :style="{ width: (220 * (item.photo.aspect_ratio || 1.5)) + 'px' }"
+      @click="openLightbox(item.globalIndex)"
     >
-      <img :src="photo.micro_url.startsWith('http') ? photo.micro_url : API_BASE + photo.micro_url" :alt="photo.title" loading="lazy" />
+      <img :src="item.photo.micro_url.startsWith('http') ? item.photo.micro_url : API_BASE + item.photo.micro_url" :alt="item.photo.title" loading="lazy" />
     </div>
   </div>
 
@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const photos = ref([]);
 const currentPhotoIndex = ref(-1);
@@ -61,6 +61,10 @@ const isLightboxOpen = ref(false);
 const isUploadOpen = ref(false);
 const ramAlloc = ref('-- MB');
 const fileInput = ref(null);
+const gridContainer = ref(null);
+const scrollTop = ref(0);
+const viewportHeight = ref(800);
+
 const API_BASE = 'http://localhost:8880';
 const preloadedCache = new Set();
 const preloadedOrder = [];
@@ -71,11 +75,35 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeydown);
   await fetchPhotos();
   await fetchStats();
+  if (gridContainer.value) {
+    viewportHeight.value = gridContainer.value.clientHeight || 800;
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const visiblePhotos = computed(() => {
+  if (!photos.value || photos.value.length === 0) return [];
+  const rowHeight = 220;
+  const itemsPerRow = 4;
+  const buffer = 400;
+  const startRow = Math.max(0, Math.floor((scrollTop.value - buffer) / rowHeight));
+  const endRow = Math.ceil((scrollTop.value + viewportHeight.value + buffer) / rowHeight);
+  
+  const startIdx = Math.max(0, startRow * itemsPerRow);
+  const endIdx = Math.min(photos.value.length, endRow * itemsPerRow);
+  
+  return photos.value.slice(startIdx, endIdx).map((photo, offset) => ({
+    photo,
+    globalIndex: startIdx + offset
+  }));
+});
+
+function handleScroll(e) {
+  scrollTop.value = e.target.scrollTop;
+}
 
 async function fetchPhotos() {
   try {
@@ -214,7 +242,10 @@ function handleKeydown(e) {
   flex-wrap: wrap;
   gap: 3px;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
   will-change: scroll-position;
+  contain: layout paint;
 }
 
 .tile {
@@ -228,6 +259,8 @@ function handleKeydown(e) {
   will-change: transform;
   backface-visibility: hidden;
   transform: translateZ(0);
+  contain: strict;
+  content-visibility: auto;
 }
 
 .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }

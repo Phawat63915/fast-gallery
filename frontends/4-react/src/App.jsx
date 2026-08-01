@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 const API_BASE = 'http://localhost:8880';
 const preloadedCache = new Set();
@@ -11,12 +11,18 @@ export default function App() {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [ramAlloc, setRamAlloc] = useState('-- MB');
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(800);
   const fileInputRef = useRef(null);
+  const gridContainerRef = useRef(null);
   const lastWheelTime = useRef(0);
 
   useEffect(() => {
     fetchPhotos();
     fetchStats();
+    if (gridContainerRef.current) {
+      setViewportHeight(gridContainerRef.current.clientHeight || 800);
+    }
   }, []);
 
   useEffect(() => {
@@ -33,6 +39,27 @@ export default function App() {
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [isLightboxOpen, isUploadOpen, currentPhotoIndex, photos]);
+
+  const visiblePhotos = useMemo(() => {
+    if (!photos || photos.length === 0) return [];
+    const rowHeight = 220;
+    const itemsPerRow = 4;
+    const buffer = 400;
+    const startRow = Math.max(0, Math.floor((scrollTop - buffer) / rowHeight));
+    const endRow = Math.ceil((scrollTop + viewportHeight + buffer) / rowHeight);
+
+    const startIdx = Math.max(0, startRow * itemsPerRow);
+    const endIdx = Math.min(photos.length, endRow * itemsPerRow);
+
+    return photos.slice(startIdx, endIdx).map((photo, offset) => ({
+      photo,
+      globalIndex: startIdx + offset,
+    }));
+  }, [photos, scrollTop, viewportHeight]);
+
+  function handleScroll(e) {
+    setScrollTop(e.target.scrollTop);
+  }
 
   function scheduleIdlePrefetch(index, direction = 1) {
     const runPrefetch = () => {
@@ -163,7 +190,10 @@ export default function App() {
           flex-wrap: wrap;
           gap: 3px;
           -webkit-overflow-scrolling: touch;
+          touch-action: pan-y;
+          overscroll-behavior-y: contain;
           will-change: scroll-position;
+          contain: layout paint;
         }
 
         .tile {
@@ -177,6 +207,8 @@ export default function App() {
           will-change: transform;
           backface-visibility: hidden;
           transform: translateZ(0);
+          contain: strict;
+          content-visibility: auto;
         }
 
         .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
@@ -202,22 +234,22 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | RAM: {ramAlloc}</span>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | Visible DOM: {visiblePhotos.length} | RAM: {ramAlloc}</span>
           <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos</button>
         </div>
       </div>
 
-      <div className="grid-container">
-        {photos.map((photo, index) => (
+      <div ref={gridContainerRef} className="grid-container" onScroll={handleScroll}>
+        {visiblePhotos.map((item) => (
           <div
-            key={photo.id}
+            key={item.photo.id}
             className="tile"
-            style={{ width: `${220 * (photo.aspect_ratio || 1.5)}px` }}
-            onClick={() => openLightbox(index)}
+            style={{ width: `${220 * (item.photo.aspect_ratio || 1.5)}px` }}
+            onClick={() => openLightbox(item.globalIndex)}
           >
             <img
-              src={photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`}
-              alt={photo.title}
+              src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`}
+              alt={item.photo.title}
               loading="lazy"
             />
           </div>

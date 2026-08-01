@@ -83,29 +83,29 @@ fast-gallery/
 
 ```mermaid
 flowchart TD
-    Client["🌐 Client Frontends (Ports 8881 - 8885)"] -->|HTTP Request| Middleware["🛡️ CORS & Gzip Compression Middleware"]
+    Client["Client Frontends Ports 8881-8885"] -->|HTTP Request| Middleware["CORS and Gzip Compression Middleware"]
     
-    Middleware --> RouteChoice{"🔀 Router Handler (Port 8880)"}
+    Middleware --> RouteChoice{"Router Handler Port 8880"}
     
-    RouteChoice -->|GET /api/photos?limit=500&cursor=TIMESTAMP| GetPhotos["🖼️ handleGetPhotos"]
-    RouteChoice -->|POST /api/upload| UploadPhotos["⚡ handleUploadPhoto"]
-    RouteChoice -->|GET /api/stats| GetStats["📊 handleGetStats"]
-    RouteChoice -->|GET /data/micro/* & /data/original/*| ServeStatic["📁 Static Asset File Server"]
+    RouteChoice -->|GET /api/photos| GetPhotos["handleGetPhotos"]
+    RouteChoice -->|POST /api/upload| UploadPhotos["handleUploadPhoto"]
+    RouteChoice -->|GET /api/stats| GetStats["handleGetStats"]
+    RouteChoice -->|GET /data/micro/| ServeStatic["Static Asset File Server"]
 
-    GetPhotos -->|Check Cache| MemoryCache{"🧠 In-Memory API Cache"}
-    MemoryCache -->|Cache Hit (1ms)| ReturnCache["🚀 Write Gzip JSON Response"]
-    MemoryCache -->|Cache Miss| QueryDB["🗄️ database.GetPhotos(cursor, limit)"]
-    QueryDB --> PostgresOrSqlite["🐘 PostgreSQL 16 / ⚡ SQLite WAL Mode"]
-    PostgresOrSqlite --> CacheSave["💾 Store Result in Cache"] --> ReturnCache
+    GetPhotos -->|Check Cache| MemoryCache{"In-Memory API Cache"}
+    MemoryCache -->|"Cache Hit 1ms"| ReturnCache["Write Gzip JSON Response"]
+    MemoryCache -->|"Cache Miss"| QueryDB["database.GetPhotos"]
+    QueryDB --> PostgresOrSqlite["PostgreSQL 16 / SQLite WAL Mode"]
+    PostgresOrSqlite --> CacheSave["Store Result in Cache"] --> ReturnCache
 
-    UploadPhotos -->|Buffer Stream| MultipartParser["📦 ParseMultipartForm (500MB Buffer)"]
-    MultipartParser --> WorkerPool["🧠 Go 32-Goroutine Parallel Worker Pool"]
-    WorkerPool --> Worker1["⚙️ Save Original File to Disk"]
-    WorkerPool --> Worker2["⚙️ Generate Micro Thumbnail + Thumbhash Blur"]
-    WorkerPool --> Worker3["⚙️ Extract EXIF Metadata + Write Database Row"]
-    Worker1 & Worker2 & Worker3 --> ClearCache["🧹 Clear API Cache"] --> ReturnUploadSuccess["✅ Return JSON { success: true }"]
+    UploadPhotos -->|Buffer Stream| MultipartParser["ParseMultipartForm 500MB Buffer"]
+    MultipartParser --> WorkerPool["Go 32-Goroutine Parallel Worker Pool"]
+    WorkerPool --> Worker1["Save Original File to Disk"]
+    WorkerPool --> Worker2["Generate Micro Thumbnail + Thumbhash Blur"]
+    WorkerPool --> Worker3["Extract EXIF Metadata + Write Database Row"]
+    Worker1 & Worker2 & Worker3 --> ClearCache["Clear API Cache"] --> ReturnUploadSuccess["Return JSON success: true"]
 
-    GetStats --> StatCollector["📈 Read Runtime MemStats & DB Count"] --> ReturnStats["📊 Return Stats JSON"]
+    GetStats --> StatCollector["Read Runtime MemStats and DB Count"] --> ReturnStats["Return Stats JSON"]
 ```
 
 ---

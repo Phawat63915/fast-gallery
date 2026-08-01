@@ -7,8 +7,9 @@
         <p style="font-size: 0.7rem; color: #94a3b8;">Composition API • Port 8883</p>
       </div>
     </div>
-    <div style="font-size: 0.8rem; color: #94a3b8;">
-      Photos: {{ photos.length }} | Go RAM: {{ ramAlloc }}
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | RAM: {{ ramAlloc }}</span>
+      <button class="btn-upload" @click="isUploadOpen = true">Upload Photos</button>
     </div>
   </div>
 
@@ -35,6 +36,20 @@
       <button class="arrow next" @click="navigate(1)">&#10095;</button>
     </div>
   </div>
+
+  <div v-if="isUploadOpen" class="modal">
+    <div class="modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>Upload Photos (Vue)</h3>
+        <button class="close-btn" @click="isUploadOpen = false">&times;</button>
+      </div>
+      <div class="drop-area" @click="fileInput.click()">
+        <p style="font-size: 32px;">📤</p>
+        <p style="margin-top: 8px;">Click to select photos for upload</p>
+        <input ref="fileInput" type="file" multiple accept="image/*" style="display:none;" @change="handleFileUpload" />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -43,7 +58,9 @@ import { ref, onMounted, onUnmounted } from 'vue';
 const photos = ref([]);
 const currentPhotoIndex = ref(-1);
 const isLightboxOpen = ref(false);
+const isUploadOpen = ref(false);
 const ramAlloc = ref('-- MB');
+const fileInput = ref(null);
 const API_BASE = 'http://localhost:8880';
 let wheelThrottleTimer = 0;
 
@@ -75,6 +92,30 @@ async function fetchStats() {
   } catch (e) {}
 }
 
+async function handleFileUpload(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  const formData = new FormData();
+  for (let i = 0; i < files.length; i++) {
+    formData.append('photos', files[i]);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.success) {
+      isUploadOpen.value = false;
+      await fetchPhotos();
+      await fetchStats();
+    }
+  } catch (err) {
+    console.error('Upload failed:', err);
+  }
+}
+
 function openLightbox(index) {
   currentPhotoIndex.value = index;
   isLightboxOpen.value = true;
@@ -96,18 +137,20 @@ function navigate(dir) {
 function handleWheel(e) {
   if (!isLightboxOpen.value) return;
   const now = Date.now();
-  if (now - wheelThrottleTimer < 100) return; // 100ms ultra-fast throttle
+  if (now - wheelThrottleTimer < 100) return;
   wheelThrottleTimer = now;
-
   if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
   else if (e.deltaY < 0 || e.deltaX < 0) navigate(-1);
 }
 
 function handleKeydown(e) {
-  if (!isLightboxOpen.value) return;
-  if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
-  else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
-  else if (e.key === 'Escape') closeLightbox();
+  if (isLightboxOpen.value) {
+    if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
+    else if (e.key === 'Escape') closeLightbox();
+  } else if (isUploadOpen.value && e.key === 'Escape') {
+    isUploadOpen.value = false;
+  }
 }
 </script>
 
@@ -117,6 +160,7 @@ function handleKeydown(e) {
 .header { height: 60px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; }
 .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
 .grid-container { height: calc(100vh - 60px); overflow-y: auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 3px; }
 .tile { height: 220px; flex-grow: 1; position: relative; overflow: hidden; cursor: pointer; border-radius: 2px; background: #0f172a; }
 .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
@@ -128,4 +172,7 @@ function handleKeydown(e) {
 .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
 .prev { left: 24px; } .next { right: 24px; }
 .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+.modal-card { width: 480px; background: #111726; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+.drop-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 36px; text-align: center; cursor: pointer; margin-top: 16px; }
 </style>

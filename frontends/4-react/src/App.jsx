@@ -6,7 +6,9 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(-1);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [ramAlloc, setRamAlloc] = useState('-- MB');
+  const fileInputRef = useRef(null);
   const wheelThrottle = useRef(0);
 
   useEffect(() => {
@@ -16,15 +18,18 @@ export default function App() {
 
   useEffect(() => {
     function handleKeydown(e) {
-      if (!isLightboxOpen) return;
-      if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
-      else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
-      else if (e.key === 'Escape') closeLightbox();
+      if (isLightboxOpen) {
+        if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
+        else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
+        else if (e.key === 'Escape') closeLightbox();
+      } else if (isUploadOpen && e.key === 'Escape') {
+        setIsUploadOpen(false);
+      }
     }
 
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
-  }, [isLightboxOpen, currentPhotoIndex, photos]);
+  }, [isLightboxOpen, isUploadOpen, currentPhotoIndex, photos]);
 
   async function fetchPhotos() {
     try {
@@ -42,6 +47,29 @@ export default function App() {
       const data = await res.json();
       if (data.alloc_ram_mb) setRamAlloc(data.alloc_ram_mb);
     } catch (e) {}
+  }
+
+  async function handleFileUpload(files) {
+    if (!files || files.length === 0) return;
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('photos', files[i]);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsUploadOpen(false);
+        await fetchPhotos();
+        await fetchStats();
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+    }
   }
 
   function openLightbox(index) {
@@ -66,7 +94,7 @@ export default function App() {
     if (!isLightboxOpen) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - wheelThrottle.current < 100) return; // 100ms ultra-fast throttle
+    if (now - wheelThrottle.current < 100) return;
     wheelThrottle.current = now;
 
     if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
@@ -81,6 +109,7 @@ export default function App() {
         .header { height: 60px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
         .brand { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; }
         .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
         .grid-container { height: calc(100vh - 60px); overflow-y: auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 3px; }
         .tile { height: 220px; flex-grow: 1; position: relative; overflow: hidden; cursor: pointer; border-radius: 2px; background: #0f172a; }
         .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
@@ -92,6 +121,9 @@ export default function App() {
         .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
         .prev { left: 24px; } .next { right: 24px; }
         .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+        .modal-card { width: 480px; background: #111726; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+        .drop-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 36px; text-align: center; cursor: pointer; margin-top: 16px; }
       `}</style>
 
       <div className="header">
@@ -102,8 +134,9 @@ export default function App() {
             <p style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Next / React Ecosystem • Port 8884</p>
           </div>
         </div>
-        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-          Photos: {photos.length} | Go RAM: {ramAlloc}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Photos: {photos.length} | RAM: {ramAlloc}</span>
+          <button className="btn-upload" onClick={() => setIsUploadOpen(true)}>Upload Photos</button>
         </div>
       </div>
 
@@ -141,6 +174,29 @@ export default function App() {
               alt=""
             />
             <button className="arrow next" onClick={() => navigate(1)}>&#10095;</button>
+          </div>
+        </div>
+      )}
+
+      {isUploadOpen && (
+        <div className="modal">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>Upload Photos (React)</h3>
+              <button className="close-btn" onClick={() => setIsUploadOpen(false)}>&times;</button>
+            </div>
+            <div className="drop-area" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+              <p style={{ fontSize: '32px' }}>📤</p>
+              <p style={{ marginTop: '8px' }}>Click to select photos for upload</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+            </div>
           </div>
         </div>
       )}

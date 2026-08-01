@@ -4,8 +4,10 @@
   let photos = $state([]);
   let currentPhotoIndex = $state(-1);
   let isLightboxOpen = $state(false);
+  let isUploadOpen = $state(false);
   let ramAlloc = $state('-- MB');
   let wheelThrottleTimer = 0;
+  let fileInput;
 
   const API_BASE = 'http://localhost:8880';
 
@@ -32,6 +34,29 @@
     } catch (e) {}
   }
 
+  async function handleFileUpload(files) {
+    if (!files || files.length === 0) return;
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('photos', files[i]);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        isUploadOpen = false;
+        await fetchPhotos();
+        await fetchStats();
+      }
+    } catch (e) {
+      console.error('Upload failed:', e);
+    }
+  }
+
   function openLightbox(index) {
     currentPhotoIndex = index;
     isLightboxOpen = true;
@@ -54,7 +79,7 @@
     if (!isLightboxOpen) return;
     e.preventDefault();
     const now = Date.now();
-    if (now - wheelThrottleTimer < 100) return; // 100ms ultra-fast throttle
+    if (now - wheelThrottleTimer < 100) return;
     wheelThrottleTimer = now;
 
     if (e.deltaY > 0 || e.deltaX > 0) navigate(1);
@@ -62,10 +87,13 @@
   }
 
   function handleKeydown(e) {
-    if (!isLightboxOpen) return;
-    if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
-    else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
-    else if (e.key === 'Escape') closeLightbox();
+    if (isLightboxOpen) {
+      if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
+      else if (e.key === 'Escape') closeLightbox();
+    } else if (isUploadOpen && e.key === 'Escape') {
+      isUploadOpen = false;
+    }
   }
 </script>
 
@@ -77,6 +105,7 @@
   .header { height: 60px; background: rgba(11, 15, 25, 0.85); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
   .brand { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; }
   .logo { width: 36px; height: 36px; background: linear-gradient(135deg, #ef4444 0%, #f97316 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
   .grid-container { height: calc(100vh - 60px); overflow-y: auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 3px; }
   .tile { height: 220px; flex-grow: 1; position: relative; overflow: hidden; cursor: pointer; border-radius: 2px; background: #0f172a; }
   .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
@@ -88,6 +117,9 @@
   .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
   .prev { left: 24px; } .next { right: 24px; }
   .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+  .modal-card { width: 480px; background: #111726; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
+  .drop-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 36px; text-align: center; cursor: pointer; margin-top: 16px; }
 </style>
 
 <div class="header">
@@ -98,8 +130,9 @@
       <p style="font-size: 0.7rem; color: #94a3b8;">Immich Choice • Port 8882</p>
     </div>
   </div>
-  <div style="font-size: 0.8rem; color: #94a3b8;">
-    Photos: {photos.length} | Go RAM: {ramAlloc}
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {photos.length} | RAM: {ramAlloc}</span>
+    <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload Photos</button>
   </div>
 </div>
 
@@ -121,6 +154,22 @@
       <button class="arrow prev" onclick={() => navigate(-1)}>&#10094;</button>
       <img src={photos[currentPhotoIndex].original_url.startsWith('http') ? photos[currentPhotoIndex].original_url : `${API_BASE}${photos[currentPhotoIndex].original_url}`} alt="" />
       <button class="arrow next" onclick={() => navigate(1)}>&#10095;</button>
+    </div>
+  </div>
+{/if}
+
+{#if isUploadOpen}
+  <div class="modal">
+    <div class="modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3>Upload Photos (Svelte)</h3>
+        <button class="close-btn" onclick={() => isUploadOpen = false}>&times;</button>
+      </div>
+      <div class="drop-area" onclick={() => fileInput.click()}>
+        <p style="font-size: 32px;">📤</p>
+        <p style="margin-top: 8px;">Click to select photos for upload</p>
+        <input bind:this={fileInput} type="file" multiple accept="image/*" style="display:none;" onchange={(e) => handleFileUpload(e.target.files)} />
+      </div>
     </div>
   </div>
 {/if}

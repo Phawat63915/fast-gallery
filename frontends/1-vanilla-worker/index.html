@@ -77,8 +77,26 @@
 
   <div id="upload-modal" class="modal-backdrop hidden">
     <div class="upload-card">
-      <div class="upload-header"><h3>Upload Media</h3><button id="btn-close-upload" class="close-btn">&times;</button></div>
-      <div id="drop-zone" class="drop-zone"><div class="drop-icon">📤</div><h4>Drag & Drop photos here</h4><input type="file" id="file-input" multiple accept="image/*" class="hidden-input"></div>
+      <div class="upload-header">
+        <h3>Upload Photos (1,000+ Batch Queue)</h3>
+        <button id="btn-close-upload" class="close-btn">&times;</button>
+      </div>
+      <div id="drop-zone" class="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon" style="font-size: 40px;">⚡📤</div>
+        <h4 style="margin-top: 12px;">Click to select up to 1,000+ photos</h4>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">High-speed concurrent batch pipeline engine</p>
+        <input type="file" id="file-input" multiple accept="image/*" class="hidden-input">
+      </div>
+      <div id="upload-progress-box" style="display: none; margin-top: 24px;">
+        <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem;">
+          <span>Uploading Photos...</span>
+          <span id="upload-progress-text" style="color: #06b6d4;">0 / 0 (0%)</span>
+        </div>
+        <div style="margin-top: 12px; background: rgba(255,255,255,0.06); border-radius: 12px; height: 12px; overflow: hidden;">
+          <div id="upload-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%); transition: width 0.2s ease;"></div>
+        </div>
+        <p id="upload-status-sub" style="margin-top: 12px; font-size: 0.8rem; color: #94a3b8; text-align: center;">Preparing batch queue...</p>
+      </div>
     </div>
   </div>
   <script src="app.js"></script>

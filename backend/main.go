@@ -197,7 +197,7 @@ func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := r.ParseMultipartForm(100 << 20)
+	err := r.ParseMultipartForm(500 << 20) // 500MB batch upload buffer
 	if err != nil {
 		http.Error(w, "File upload too large", http.StatusBadRequest)
 		return

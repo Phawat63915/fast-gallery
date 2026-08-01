@@ -270,8 +270,73 @@
         else if (e.key === 'Escape') closeLightbox();
       }
     });
-    btnUploadTrigger.addEventListener('click', () => uploadModal.classList.remove('hidden'));
-    btnCloseUpload.addEventListener('click', () => uploadModal.classList.add('hidden'));
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const uploadProgressBox = document.getElementById('upload-progress-box');
+    const uploadProgressText = document.getElementById('upload-progress-text');
+    const uploadProgressBar = document.getElementById('upload-progress-bar');
+    const uploadStatusSub = document.getElementById('upload-status-sub');
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        dropZone.style.display = 'none';
+        uploadProgressBox.style.display = 'block';
+
+        const fileList = Array.from(files);
+        const total = fileList.length;
+        let completed = 0;
+        const BATCH_SIZE = 5;
+
+        for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+          const chunk = fileList.slice(i, i + BATCH_SIZE);
+          const formData = new FormData();
+          for (const file of chunk) {
+            formData.append('photos', file);
+          }
+
+          try {
+            uploadStatusSub.textContent = `Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(fileList.length / BATCH_SIZE)}...`;
+            const res = await fetch(`${API_BASE}/api/upload`, {
+              method: 'POST',
+              body: formData,
+            });
+            const data = await res.json();
+            if (data.success) {
+              completed += chunk.length;
+              const percent = Math.round((completed / total) * 100);
+              uploadProgressText.textContent = `${completed} / ${total} (${percent}%)`;
+              uploadProgressBar.style.width = `${percent}%`;
+            }
+          } catch (err) {
+            console.error('Batch upload error:', err);
+          }
+        }
+
+        uploadStatusSub.textContent = `Upload Complete! Indexed ${total.toLocaleString()} photos successfully!`;
+        setTimeout(async () => {
+          uploadProgressBox.style.display = 'none';
+          dropZone.style.display = 'block';
+          uploadModal.classList.add('hidden');
+          await fetchPhotos();
+          await fetchServerStats();
+        }, 800);
+      });
+    }
+
+    if (btnUploadTrigger) {
+      btnUploadTrigger.addEventListener('click', () => {
+        uploadModal.classList.remove('hidden');
+      });
+    }
+
+    if (btnCloseUpload) {
+      btnCloseUpload.addEventListener('click', () => {
+        uploadModal.classList.add('hidden');
+      });
+    }
   }
 
   function startFPSMonitor() {

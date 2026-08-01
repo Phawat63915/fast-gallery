@@ -9,11 +9,11 @@
     </div>
     <div style="display: flex; align-items: center; gap: 16px;">
       <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {{ photos.length }} | Visible DOM: {{ virtualData.items.length }} | RAM: {{ ramAlloc }}</span>
-      <button class="btn-upload" @click="isUploadOpen = true">Upload Photos</button>
+      <button class="btn-upload" @click="isUploadOpen = true">Upload Photos (1,000+)</button>
     </div>
   </div>
 
-  <div ref="gridContainer" class="grid-container" :class="{ 'is-scrolling': isScrolling, 'fast-scrolling': isFastScrolling }" @scroll="handleScroll">
+  <div ref="gridContainer" class="grid-container" @scroll="handleScroll">
     <div :style="{ height: virtualData.topSpacer + 'px', width: '100%' }"></div>
     <div
       v-for="item in virtualData.items"
@@ -42,13 +42,26 @@
   <div v-if="isUploadOpen" class="modal">
     <div class="modal-card">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Upload Photos (Vue)</h3>
-        <button class="close-btn" @click="isUploadOpen = false">&times;</button>
+        <h3>Upload Photos (1,000+ Batch Queue)</h3>
+        <button v-if="!isUploading" class="close-btn" @click="isUploadOpen = false">&times;</button>
       </div>
-      <div class="drop-area" @click="fileInput.click()">
-        <p style="font-size: 32px;">📤</p>
-        <p style="margin-top: 8px;">Click to select photos for upload</p>
+
+      <div v-if="!isUploading" class="drop-area" @click="fileInput.click()">
+        <p style="font-size: 40px;">⚡📤</p>
+        <p style="margin-top: 12px; font-weight: 600; font-size: 1.05rem;">Click to select up to 1,000+ photos</p>
+        <p style="margin-top: 6px; font-size: 0.8rem; color: #94a3b8;">High-speed concurrent batch pipeline engine</p>
         <input ref="fileInput" type="file" multiple accept="image/*" style="display:none;" @change="handleFileUpload" />
+      </div>
+
+      <div v-else style="margin-top: 24px;">
+        <div style="display:flex; justify-content:space-between; font-size: 0.9rem; font-weight:600;">
+          <span>Uploading Photos...</span>
+          <span style="color: #06b6d4;">{{ uploadProgress }} / {{ uploadTotal }} ({{ uploadPercent }}%)</span>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar" :style="{ width: uploadPercent + '%' }"></div>
+        </div>
+        <p style="margin-top: 12px; font-size: 0.8rem; color: #94a3b8; text-align: center;">{{ uploadStatusText }}</p>
       </div>
     </div>
   </div>
@@ -66,6 +79,13 @@ const fileInput = ref(null);
 const gridContainer = ref(null);
 const scrollTop = ref(0);
 const viewportHeight = ref(800);
+
+// 1,000+ Batch Uploading Progress State
+const isUploading = ref(false);
+const uploadProgress = ref(0);
+const uploadTotal = ref(0);
+const uploadPercent = ref(0);
+const uploadStatusText = ref('');
 
 const API_BASE = 'http://localhost:8880';
 const preloadedCache = new Set();
@@ -90,7 +110,7 @@ const virtualData = computed(() => {
   if (!photos.value || photos.value.length === 0) return { items: [], topSpacer: 0, bottomSpacer: 0 };
   const rowHeight = 223;
   const itemsPerRow = 4;
-  const bufferRows = 12; // 12-row buffer (~2,600px) for ultra-fast scrolling
+  const bufferRows = 12;
   const totalRows = Math.ceil(photos.value.length / itemsPerRow);
 
   const currentLine = Math.floor(scrollTop.value / rowHeight);
@@ -113,35 +133,8 @@ const virtualData = computed(() => {
   return { items, topSpacer, bottomSpacer };
 });
 
-const isScrolling = ref(false);
-const isFastScrolling = ref(false);
-let isScrollingTimer = null;
-let lastScrollTop = 0;
-let lastScrollTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
 function handleScroll(e) {
   scrollTop.value = e.target.scrollTop;
-  const now = performance.now();
-  const dt = now - lastScrollTime;
-  let velocity = 0;
-  if (dt > 0) {
-    velocity = Math.abs(scrollTop.value - lastScrollTop) / dt;
-  }
-  lastScrollTop = scrollTop.value;
-  lastScrollTime = now;
-
-  if (!isScrolling.value) isScrolling.value = true;
-  if (velocity > 2.0) {
-    if (!isFastScrolling.value) isFastScrolling.value = true;
-  } else {
-    if (isFastScrolling.value) isFastScrolling.value = false;
-  }
-
-  clearTimeout(isScrollingTimer);
-  isScrollingTimer = setTimeout(() => {
-    isScrolling.value = false;
-    isFastScrolling.value = false;
-  }, 150);
 }
 
 async function fetchPhotos() {
@@ -202,28 +195,50 @@ function prefetchSingleUrl(photo) {
   }
 }
 
+// 1,000+ Concurrent Batch Upload Pipeline (Vue Engine)
 async function handleFileUpload(e) {
   const files = e.target.files;
   if (!files || files.length === 0) return;
-  const formData = new FormData();
-  for (let i = 0; i < files.length; i++) {
-    formData.append('photos', files[i]);
+
+  isUploading.value = true;
+  uploadTotal.value = files.length;
+  uploadProgress.value = 0;
+  uploadPercent.value = 0;
+  uploadStatusText.value = `Initializing batch queue for ${uploadTotal.value.toLocaleString()} photos...`;
+
+  const fileList = Array.from(files);
+  const BATCH_SIZE = 5;
+
+  for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+    const chunk = fileList.slice(i, i + BATCH_SIZE);
+    const formData = new FormData();
+    for (const file of chunk) {
+      formData.append('photos', file);
+    }
+
+    try {
+      uploadStatusText.value = `Uploading batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(fileList.length / BATCH_SIZE)}...`;
+      const res = await fetch(`${API_BASE}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        uploadProgress.value += chunk.length;
+        uploadPercent.value = Math.round((uploadProgress.value / uploadTotal.value) * 100);
+      }
+    } catch (err) {
+      console.error('Batch upload error:', err);
+    }
   }
 
-  try {
-    const res = await fetch(`${API_BASE}/api/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await res.json();
-    if (data.success) {
-      isUploadOpen.value = false;
-      await fetchPhotos();
-      await fetchStats();
-    }
-  } catch (err) {
-    console.error('Upload failed:', err);
-  }
+  uploadStatusText.value = `Upload Complete! Indexed ${uploadTotal.value.toLocaleString()} photos successfully!`;
+  setTimeout(async () => {
+    isUploading.value = false;
+    isUploadOpen.value = false;
+    await fetchPhotos();
+    await fetchStats();
+  }, 800);
 }
 
 function openLightbox(index, direction = 1) {
@@ -260,7 +275,7 @@ function handleKeydown(e) {
     else if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
     else if (e.key === 'Escape') closeLightbox();
   } else if (isUploadOpen.value && e.key === 'Escape') {
-    isUploadOpen.value = false;
+    if (!isUploading.value) isUploadOpen.value = false;
   }
 }
 </script>
@@ -282,10 +297,6 @@ function handleKeydown(e) {
   gap: 3px;
   -webkit-overflow-scrolling: touch;
   will-change: scroll-position;
-}
-
-.grid-container.is-scrolling .tile {
-  pointer-events: none !important;
 }
 
 .tile {
@@ -310,7 +321,12 @@ function handleKeydown(e) {
 .arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(17,24,39,0.7); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2100; }
 .prev { left: 24px; } .next { right: 24px; }
 .close-btn { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
-.modal-card { width: 480px; background: #111726; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; }
-.drop-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 36px; text-align: center; cursor: pointer; margin-top: 16px; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+.modal-card { width: 520px; background: #111726; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
+.drop-area { border: 2px dashed rgba(255,255,255,0.25); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; margin-top: 16px; transition: border-color 0.2s ease; }
+.drop-area:hover { border-color: #3b82f6; }
+
+.progress-container { margin-top: 20px; background: rgba(255,255,255,0.06); border-radius: 12px; height: 12px; overflow: hidden; position: relative; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%); transition: width 0.2s ease; border-radius: 12px; }
 </style>

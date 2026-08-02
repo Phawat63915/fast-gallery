@@ -101,7 +101,7 @@
         if (data.photos.length < 500 || !data.next_cursor) {
           state.hasMore = false;
         }
-        computeLayout();
+        computeLayout(isAppend);
       } else {
         state.hasMore = false;
       }
@@ -120,13 +120,14 @@
     } catch (e) {}
   }
 
-  function computeLayout() {
+  function computeLayout(isAppend = false) {
     const containerWidth = scrollContainer.clientWidth - 32;
     layoutWorker.postMessage({
       photos: state.photos,
       containerWidth: Math.max(320, containerWidth),
       targetRowHeight: 220,
       gap: 3,
+      isAppend: isAppend,
     });
   }
 
@@ -148,7 +149,9 @@
 
   function recyclePhotoCard(card) {
     card.remove();
-    state.nodePool.push(card);
+    if (state.nodePool.length < 80) {
+      state.nodePool.push(card);
+    }
   }
 
   function renderVirtualGrid() {
@@ -191,6 +194,14 @@
       if (state.activeNodes.has(photo.id)) {
         const node = state.activeNodes.get(photo.id);
         node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        if (!scrollContainer.classList.contains('fast-scrolling')) {
+          const img = node.querySelector('img');
+          const thumbUrl = getThumbUrl(photo);
+          if (img && img.dataset.src !== thumbUrl) {
+            img.dataset.src = thumbUrl;
+            img.src = thumbUrl;
+          }
+        }
       } else {
         const card = acquirePhotoCard(item);
         card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -261,6 +272,8 @@
     drawThumbhashPlaceholder(canvas, photo.thumbhash);
 
     const thumbUrl = getThumbUrl(photo);
+    const isFastScroll = scrollContainer.classList.contains('fast-scrolling');
+
     if (img.dataset.src !== thumbUrl) {
       img.classList.remove('loaded');
       img.dataset.src = thumbUrl;
@@ -269,7 +282,11 @@
           img.classList.add('loaded');
         }
       };
-      img.src = thumbUrl;
+      if (!isFastScroll) {
+        img.src = thumbUrl;
+      }
+    } else if (img.complete && img.naturalWidth > 0) {
+      img.classList.add('loaded');
     }
 
     return card;

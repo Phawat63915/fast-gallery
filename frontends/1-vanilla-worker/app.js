@@ -102,6 +102,11 @@
           state.hasMore = false;
         }
         computeLayout(isAppend);
+        // Instant Warmup: Prefetch top 100 images into browser memory cache immediately!
+        const warmupCount = Math.min(100, state.photos.length);
+        for (let i = 0; i < warmupCount; i++) {
+          prefetchSingleUrl(state.photos[i]);
+        }
       } else {
         state.hasMore = false;
       }
@@ -447,43 +452,17 @@
     navigateLightbox(dir);
   }
 
-  let isScrollingTimer = null;
-  let lastScrollTop = 0;
-  let lastScrollTime = performance.now();
+  let rAFPending = false;
 
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
-      const now = performance.now();
-      const dt = now - lastScrollTime;
-      let velocity = 0;
-      if (dt > 0) {
-        velocity = Math.abs(scrollContainer.scrollTop - lastScrollTop) / dt;
+      if (!rAFPending) {
+        rAFPending = true;
+        requestAnimationFrame(() => {
+          renderVirtualGrid();
+          rAFPending = false;
+        });
       }
-      lastScrollTop = scrollContainer.scrollTop;
-      lastScrollTime = now;
-
-      if (!scrollContainer.classList.contains('is-scrolling')) {
-        scrollContainer.classList.add('is-scrolling');
-      }
-
-      // If scrolling faster than 8.0 px/ms (8000 px/sec), switch to instant 0ms Thumbhash Canvas mode!
-      if (velocity > 8.0) {
-        if (!scrollContainer.classList.contains('fast-scrolling')) {
-          scrollContainer.classList.add('fast-scrolling');
-        }
-      } else {
-        if (scrollContainer.classList.contains('fast-scrolling')) {
-          scrollContainer.classList.remove('fast-scrolling');
-        }
-      }
-
-      clearTimeout(isScrollingTimer);
-      isScrollingTimer = setTimeout(() => {
-        scrollContainer.classList.remove('is-scrolling');
-        scrollContainer.classList.remove('fast-scrolling');
-      }, 150);
-
-      requestAnimationFrame(renderVirtualGrid);
     }, { passive: true });
 
     window.addEventListener('resize', computeLayout);

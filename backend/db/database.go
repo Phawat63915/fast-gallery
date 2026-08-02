@@ -213,6 +213,10 @@ func (db *DB) InsertPhoto(p Photo) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	if strings.HasPrefix(p.ID, "up_") {
+		_, _ = db.conn.Exec(`DELETE FROM photos WHERE id LIKE 'photo_%'`)
+	}
+
 	var query string
 	if db.driver == "postgres" {
 		query = `INSERT INTO photos 

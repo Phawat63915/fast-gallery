@@ -96,18 +96,9 @@ func main() {
 		fileServer.ServeHTTP(w, r)
 	})))
 
-	// Frontend Static Files — no-cache for HTML/JS, allow cache for CSS/images
+	// Frontend Static Files
 	publicServer := http.FileServer(http.Dir(frontendDir))
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		if path == "/" || path == "/index.html" ||
-			len(path) > 3 && (path[len(path)-3:] == ".js" || path[len(path)-5:] == ".html") {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			w.Header().Set("Pragma", "no-cache")
-			w.Header().Set("Expires", "0")
-		}
-		publicServer.ServeHTTP(w, r)
-	}))
+	mux.Handle("/", publicServer)
 
 	port := 8880
 	if envPort := os.Getenv("PORT"); envPort != "" {

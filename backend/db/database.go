@@ -23,9 +23,10 @@ type Photo struct {
 }
 
 type DB struct {
-	conn   *sql.DB
-	driver string
-	mu     sync.RWMutex
+	conn           *sql.DB
+	driver         string
+	mu             sync.RWMutex
+	dummiesCleaned bool
 }
 
 func InitDB(dataDir string) (*DB, error) {
@@ -176,9 +177,10 @@ func (db *DB) InsertPhoto(p Photo) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Auto-cleanup dummy benchmark photos (photo_%) when first real photo (up_%) is uploaded
-	if strings.HasPrefix(p.ID, "up_") {
+	// Auto-cleanup dummy benchmark photos (photo_%) only ONCE on first real photo upload
+	if !db.dummiesCleaned && strings.HasPrefix(p.ID, "up_") {
 		_, _ = db.conn.Exec(`DELETE FROM photos WHERE id LIKE 'photo_%'`)
+		db.dummiesCleaned = true
 	}
 
 	var query string

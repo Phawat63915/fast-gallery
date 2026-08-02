@@ -376,7 +376,22 @@
   .header { height: 64px; background: rgba(11, 15, 25, 0.95); border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .logo { font-size: 24px; }
-  .btn-upload { background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%); border: none; padding: 8px 16px; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
+  .btn-upload {
+    background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+    border: none;
+    padding: 8px 18px;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-upload:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+  }
   .icon-btn { width: 36px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
   .icon-btn.active { background: rgba(59,130,246,0.3); border-color: #3b82f6; }
   .grid-container { height: calc(100vh - 64px); overflow-y: auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; }
@@ -426,7 +441,7 @@
   </div>
   <div style="display: flex; align-items: center; gap: 16px;">
     <span style="font-size: 0.8rem; color: #94a3b8;">Photos: {photos.length} | RAM: {ramAlloc}</span>
-    <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload</button>
+    <button class="btn-upload" onclick={() => isUploadOpen = true}>Upload Photos (99,999+)</button>
   </div>
 </div>
 

@@ -29,11 +29,14 @@ docker compose up -d db && ./build.sh && ./backend/server
 
 ### รูปแบบ C: รันเฉพาะ Backend + Stack 1 (Vanilla JS + Worker @ Port 8881)
 ```bash
-# รันผ่านสคริปต์สั้นรันจาก Root
+# 🔹 โหมด Development (รันตรงจาก Root):
 ./run-stack1.sh
 
-# หรือรันผ่านคำสั่งบรรทัดเดียว:
-(go run ./backend/main.go) & (npx serve frontends/1-vanilla-worker -p 8881 --single)
+# 🔹 โหมด Production (บิลด์เป็น Binary + PostgreSQL):
+./run-stack1-prod.sh
+
+# หรือสั่ง manual จาก Root:
+docker compose up -d db && ./build.sh && (cd backend && ./server) & (npx serve frontends/1-vanilla-worker -p 8881 --single)
 ```
 * 🌐 **Backend API**: `http://localhost:8880`
 * ⚡ **Stack 1 Frontend**: `http://localhost:8881`

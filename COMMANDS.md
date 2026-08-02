@@ -20,16 +20,15 @@ go run ./backend/main.go
 ```
 * 🌐 **URL**: `http://localhost:8880`
 
-### ⚙️ การเลือกเปลี่ยนหน้าบ้านที่หลังบ้าน Host (FRONTEND_STACK)
-สามารถกำหนด Environment Variable `FRONTEND_STACK` เพื่อเลือกหน้าบ้านที่จะให้หลังบ้าน Host (ตั้งค่าเริ่มต้นเป็น `1`):
+### ⚙️ การเลือก Path หน้าบ้านที่หลังบ้าน Host (FRONTEND_DIR)
+สามารถกำหนด Environment Variable `FRONTEND_DIR` เพื่อชี้ไปยังโฟลเดอร์หน้าบ้านที่ต้องการให้ Host (ตั้งค่าเริ่มต้นเป็น `frontends/1-vanilla-worker`):
 ```bash
 # Host หน้าบ้าน Stack 1 (Vanilla Worker):
-FRONTEND_STACK=1 ./backend/server
+FRONTEND_DIR=./frontends/1-vanilla-worker ./backend/server
 
 # Host หน้าบ้าน Stack 4 (React 19):
-FRONTEND_STACK=4 ./backend/server
+FRONTEND_DIR=./frontends/4-react/dist ./backend/server
 ```
-* **ตัวเลือกที่รองรับ**: `1` (Vanilla Worker), `2` (Svelte 5), `3` (Vue 3), `4` (React 19), `5` (Vanilla Classic)
 
 ---
 

@@ -39,11 +39,15 @@ func main() {
 	}
 
 	dataDir := findDir("data", "../data")
-	frontendStack := getFrontendStackEnv()
-	frontendDir := getFrontendDir(frontendStack)
+	frontendDir := os.Getenv("FRONTEND_DIR")
+	if frontendDir == "" {
+		frontendDir = findDir("frontends/1-vanilla-worker", "../frontends/1-vanilla-worker", "frontend", "../frontend")
+	} else if abs, err := filepath.Abs(frontendDir); err == nil {
+		frontendDir = abs
+	}
 
 	log.Printf("Using Data Directory: %s", dataDir)
-	log.Printf("Hosting Frontend Stack #%s from: %s", frontendStack, frontendDir)
+	log.Printf("Hosting Frontend Directory: %s", frontendDir)
 
 	var err error
 	database, err = db.InitDB(dataDir)
@@ -134,34 +138,6 @@ func findDir(names ...string) string {
 	}
 	os.MkdirAll(names[0], 0755)
 	return names[0]
-}
-
-func getFrontendStackEnv() string {
-	stackEnv := os.Getenv("FRONTEND_STACK")
-	if stackEnv == "" {
-		stackEnv = os.Getenv("STACK")
-	}
-	if stackEnv == "" {
-		stackEnv = "1"
-	}
-	return stackEnv
-}
-
-func getFrontendDir(stack string) string {
-	switch stack {
-	case "1":
-		return findDir("frontends/1-vanilla-worker", "../frontends/1-vanilla-worker")
-	case "2":
-		return findDir("frontends/2-svelte/dist", "../frontends/2-svelte/dist", "frontends/2-svelte", "../frontends/2-svelte")
-	case "3":
-		return findDir("frontends/3-vue/dist", "../frontends/3-vue/dist", "frontends/3-vue", "../frontends/3-vue")
-	case "4":
-		return findDir("frontends/4-react/dist", "../frontends/4-react/dist", "frontends/4-react", "../frontends/4-react")
-	case "5":
-		return findDir("frontends/5-vanilla-root", "../frontends/5-vanilla-root")
-	default:
-		return findDir("frontends/1-vanilla-worker", "../frontends/1-vanilla-worker")
-	}
 }
 
 func invalidateAPICache() {

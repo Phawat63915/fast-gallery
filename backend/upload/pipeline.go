@@ -4,13 +4,16 @@ import (
 	"fast-gallery/backend/db"
 	"fmt"
 	"image"
-	_ "image/jpeg"
+
+	"image/jpeg"
 	_ "image/png"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 type UploadJob struct {
@@ -101,19 +104,23 @@ func (p *Pipeline) processJob(job UploadJob) {
 		thumbFilename := job.ID + ".jpg"
 		thumbPath := filepath.Join(p.thumbDir, thumbFilename)
 
-		srcFile, err := os.Open(job.OriginalPath)
-		if err == nil {
-			dstFile, err := os.Create(thumbPath)
+		err := createResizedThumbnail(job.OriginalPath, thumbPath, 400, 80)
+		if err != nil {
+			log.Printf("Warning: Failed to resize thumbnail for %s: %v, falling back to direct copy", job.ID, err)
+			srcFile, err := os.Open(job.OriginalPath)
 			if err == nil {
-				io.Copy(dstFile, srcFile)
-				dstFile.Close()
+				dstFile, err := os.Create(thumbPath)
+				if err == nil {
+					io.Copy(dstFile, srcFile)
+					dstFile.Close()
+				}
+				srcFile.Close()
 			}
-			srcFile.Close()
 		}
 		microURL = fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename)
 	}
 
-	sampleThumbhash := "3QcKLQJ2d3h/eHiIeHeAePiGeHh4"
+	sampleThumbhash := "3QcKLQJ2d3h/eHeIeHeAePiGeHh4"
 
 	photo := db.Photo{
 		ID:          job.ID,
@@ -136,6 +143,58 @@ func (p *Pipeline) processJob(job UploadJob) {
 	} else {
 		log.Printf("[Upload Success] Photo %s processed & indexed in SQLite WAL!", job.ID)
 	}
+}
+
+func createResizedThumbnail(srcPath string, dstPath string, maxDim int, quality int) error {
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	srcImg, _, err := image.Decode(srcFile)
+	if err != nil {
+		return err
+	}
+
+	bounds := srcImg.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+
+	if origW <= 0 || origH <= 0 {
+		return fmt.Errorf("invalid image bounds")
+	}
+
+	targetW := origW
+	targetH := origH
+
+	if origW > maxDim || origH > maxDim {
+		if origW > origH {
+			targetW = maxDim
+			targetH = int(float64(origH) * float64(maxDim) / float64(origW))
+		} else {
+			targetH = maxDim
+			targetW = int(float64(origW) * float64(maxDim) / float64(origH))
+		}
+	}
+
+	if targetW <= 0 {
+		targetW = 1
+	}
+	if targetH <= 0 {
+		targetH = 1
+	}
+
+	dstImg := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+	xdraw.BiLinear.Scale(dstImg, dstImg.Bounds(), srcImg, bounds, xdraw.Over, nil)
+
+	dstFile, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	return jpeg.Encode(dstFile, dstImg, &jpeg.Options{Quality: quality})
 }
 
 func (p *Pipeline) GetUploadDir() string {

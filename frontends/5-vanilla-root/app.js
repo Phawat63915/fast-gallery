@@ -143,7 +143,7 @@
       fetchPhotos(true);
     }
 
-    const buffer = 2000;
+    const buffer = 2600;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
 

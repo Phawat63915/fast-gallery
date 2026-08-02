@@ -27,7 +27,20 @@ docker compose up -d db && ./build.sh && ./backend/server
 
 ---
 
-### รูปแบบ C: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
+### รูปแบบ C: รันเฉพาะ Backend + Stack 1 (Vanilla JS + Worker @ Port 8881)
+```bash
+# รันผ่านสคริปต์สั้นรันจาก Root
+./run-stack1.sh
+
+# หรือรันผ่านคำสั่งบรรทัดเดียว:
+(go run ./backend/main.go) & (npx serve frontends/1-vanilla-worker -p 8881 --single)
+```
+* 🌐 **Backend API**: `http://localhost:8880`
+* ⚡ **Stack 1 Frontend**: `http://localhost:8881`
+
+---
+
+### รูปแบบ D: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
 ```bash
 ./run-all.sh
 ```

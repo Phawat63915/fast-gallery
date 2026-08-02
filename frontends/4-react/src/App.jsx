@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-const API_BASE = 'http://localhost:8880';
+const API_BASE = '';
 const preloadedCache = new Set();
 const preloadedOrder = [];
 const MAX_PRELOAD_CACHE = 50;

@@ -682,8 +682,8 @@
       tabCustomUrl.addEventListener('click', () => {
         tabCustomUrl.classList.add('active');
         tabBatchUpload.classList.remove('active');
-        sectionCustomUrl.classList.add('hidden');
         sectionCustomUrl.classList.remove('hidden');
+        sectionBatchUpload.classList.add('hidden');
       });
     }
 

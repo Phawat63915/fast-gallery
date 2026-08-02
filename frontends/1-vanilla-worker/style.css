@@ -110,13 +110,18 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
 .exif-drawer h4 { font-family: var(--font-heading); font-size: 1.1rem; color: #fff; }
 .exif-sub { font-size: 0.8rem; color: var(--text-muted); }
 
-/* [PERF] backdrop-filter: blur(10px) บน Upload Modal ลบออก — ใช้ opacity เข้มแทน */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.88); display: flex; align-items: center; justify-content: center; z-index: 3000; }
 .modal-backdrop.hidden { display: none; }
-.upload-card { width: 500px; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-color); border-radius: 20px; padding: 24px; }
+.upload-card { width: 540px; background: #111726; border: 1px solid var(--border-color); border-radius: 20px; padding: 28px; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
+.upload-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.close-btn { background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer; transition: color 0.15s ease; padding: 0 4px; line-height: 1; }
+.close-btn:hover { color: #fff; }
 .upload-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
 .upload-tab { background: none; border: none; padding: 8px 16px; border-radius: 8px; color: var(--text-muted); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
 .upload-tab.active { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
 .tab-section.hidden { display: none; }
+.drop-zone { border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 16px; padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease; background: rgba(255, 255, 255, 0.02); }
+.drop-zone:hover { border-color: #3b82f6; background: rgba(59, 130, 246, 0.04); }
+.hidden-input { display: none !important; }
 .url-input-field:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
 

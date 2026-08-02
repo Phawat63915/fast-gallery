@@ -79,6 +79,7 @@ func main() {
 
 	// High-performance API endpoints with CORS and Gzip support
 	mux.HandleFunc("/api/photos", corsMiddleware(handleGetPhotos))
+	mux.HandleFunc("/api/photos/url", corsMiddleware(handleAddPhotoURL))
 	mux.HandleFunc("/api/upload", corsMiddleware(handleUploadPhoto))
 	mux.HandleFunc("/api/stats", corsMiddleware(handleGetStats))
 
@@ -309,6 +310,51 @@ func handleUploadPhoto(w http.ResponseWriter, r *http.Request) {
 		"count":   len(uploadedIDs),
 		"ids":     uploadedIDs,
 		"message": "Upload accepted! Background Goroutine pipeline is generating thumbnails & Thumbhash.",
+	})
+}
+
+func handleAddPhotoURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		URL         string  `json:"url"`
+		AspectRatio float64 `json:"aspect_ratio"`
+		Width       int     `json:"width"`
+		Height      int     `json:"height"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		http.Error(w, "Invalid request body or missing url", http.StatusBadRequest)
+		return
+	}
+
+	if req.AspectRatio <= 0 {
+		req.AspectRatio = 1.5
+	}
+
+	photoID := fmt.Sprintf("custom_%d", time.Now().UnixNano())
+	photo := db.Photo{
+		ID:          photoID,
+		Filename:    req.URL,
+		CreatedAt:   time.Now().UnixMilli(),
+		AspectRatio: req.AspectRatio,
+	}
+
+	if err := database.InsertPhoto(photo); err != nil {
+		http.Error(w, fmt.Sprintf("Database insert failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	invalidateAPICache()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"id":      photoID,
+		"photo":   photo,
 	})
 }
 

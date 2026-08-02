@@ -25,7 +25,7 @@
       <div class="stat-pill"><span class="stat-label">DOM Nodes:</span> <span id="stat-dom" class="stat-val">36</span></div>
     </div>
     <div class="header-actions">
-      <button id="btn-upload-trigger" class="btn btn-primary">Upload Photos (99,999+)</button>
+      <button id="btn-upload-trigger" class="btn btn-primary">Upload</button>
     </div>
   </header>
 
@@ -50,7 +50,7 @@
       <div style="display: flex; gap: 8px; align-items: center;">
         <button id="btn-zoom-toggle" class="icon-btn" title="Zoom (Click / Wheel)">🔍</button>
         <button id="btn-exif-toggle" class="icon-btn active" title="Toggle EXIF Info">ℹ️</button>
-        <button id="btn-close-lightbox" class="icon-btn" title="Close">&times;</button>
+        <button id="btn-close-lightbox" class="close-btn" title="Close">&times;</button>
       </div>
     </div>
     <div class="lightbox-body">
@@ -80,7 +80,7 @@
   <div id="upload-modal" class="modal-backdrop hidden">
     <div class="upload-card">
       <div class="upload-header">
-        <h3>Add Photos & Media</h3>
+        <h3 style="font-size: 1.1rem; font-weight: 600;">Add Photos & Media</h3>
         <button id="btn-close-upload" class="close-btn">&times;</button>
       </div>
       <div class="upload-tabs">
@@ -90,10 +90,10 @@
 
       <div id="section-batch-upload" class="tab-section">
         <div id="drop-zone" class="drop-zone" onclick="document.getElementById('file-input').click()">
-          <div class="drop-icon" style="font-size: 40px;">⚡📤</div>
-          <h4 style="margin-top: 12px;">Click to select up to 1,000+ photos</h4>
-          <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">High-speed concurrent batch pipeline engine</p>
-          <input type="file" id="file-input" multiple accept="image/*" class="hidden-input">
+          <div class="drop-icon" style="font-size: 40px;">⚡🚀</div>
+          <h4 style="margin-top: 12px; font-weight: 600; font-size: 1.05rem;">Select photos to upload (99,999+)</h4>
+          <p style="margin-top: 6px; font-size: 0.8rem; color: #94a3b8;">6 Parallel Worker Streams • Zero Main-Thread Lockup</p>
+          <input type="file" id="file-input" multiple accept="image/*" class="hidden-input" style="display: none;">
         </div>
         <div id="upload-progress-box" style="display: none; margin-top: 24px;">
           <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem;">

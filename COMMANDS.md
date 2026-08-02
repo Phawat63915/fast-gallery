@@ -20,6 +20,17 @@ go run ./backend/main.go
 ```
 * 🌐 **URL**: `http://localhost:8880`
 
+### ⚙️ การเลือกเปลี่ยนหน้าบ้านที่หลังบ้าน Host (FRONTEND_STACK)
+สามารถกำหนด Environment Variable `FRONTEND_STACK` เพื่อเลือกหน้าบ้านที่จะให้หลังบ้าน Host (ตั้งค่าเริ่มต้นเป็น `1`):
+```bash
+# Host หน้าบ้าน Stack 1 (Vanilla Worker):
+FRONTEND_STACK=1 ./backend/server
+
+# Host หน้าบ้าน Stack 4 (React 19):
+FRONTEND_STACK=4 ./backend/server
+```
+* **ตัวเลือกที่รองรับ**: `1` (Vanilla Worker), `2` (Svelte 5), `3` (Vue 3), `4` (React 19), `5` (Vanilla Classic)
+
 ---
 
 ### รูปแบบ B: รันโหมด Production (บิลด์เป็น Binary ความเร็วสูงสุด)

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fast-gallery/backend/db"
 	"fast-gallery/backend/upload"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 var (
@@ -27,21 +33,30 @@ var (
 	// Sub-millisecond JSON Response Cache for /api/photos
 	apiCacheMutex sync.RWMutex
 	apiCache      = make(map[string][]byte)
+
+	// In-memory On-The-Fly Thumbnail Cache when DISABLE_THUMBNAILS=true
+	thumbCacheMutex sync.RWMutex
+	thumbCache      = make(map[string][]byte)
 )
 
 func main() {
 	startTime = time.Now()
 	log.Println("Starting Immich FastGallery Server (High-Performance Go Backend)...")
 
+	loadDotEnv()
+
 	disableThumbnails = os.Getenv("DISABLE_THUMBNAILS") == "true"
 	if disableThumbnails {
 		log.Println("⚡ Config Enabled: DISABLE_THUMBNAILS=true -> Serving original images as micro_url directly!")
 	}
 
-	dataDir := findDir("data", "../data")
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = findDir("data", "../data")
+	}
 	frontendDir := os.Getenv("FRONTEND_DIR")
 	if frontendDir == "" {
-		frontendDir = findDir("frontends/1-vanilla-worker", "../frontends/1-vanilla-worker", "frontend", "../frontend")
+		frontendDir = findDir("frontends/1-vanilla-worker", "../frontends/1-vanilla-worker")
 	} else if abs, err := filepath.Abs(frontendDir); err == nil {
 		frontendDir = abs
 	}
@@ -88,6 +103,12 @@ func main() {
 			relPath := strings.TrimPrefix(r.URL.Path, "thumbnails/")
 			originalFilePath := filepath.Join(uploadsDir, "originals", relPath)
 			if _, err := os.Stat(originalFilePath); err == nil {
+				if thumbBytes, err := getOrGenerateOnTheFlyThumb(originalFilePath); err == nil {
+					w.Header().Set("Content-Type", "image/jpeg")
+					w.Header().Set("Content-Length", strconv.Itoa(len(thumbBytes)))
+					w.Write(thumbBytes)
+					return
+				}
 				http.ServeFile(w, r, originalFilePath)
 				return
 			}
@@ -310,4 +331,98 @@ func handleGetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+func loadDotEnv() {
+	envPaths := []string{".env", "../.env", filepath.Join("..", ".env")}
+	for _, path := range envPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		log.Printf("📄 Loaded configuration from %s", path)
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			if (strings.HasPrefix(val, "\"") && strings.HasSuffix(val, "\"")) ||
+				(strings.HasPrefix(val, "'") && strings.HasSuffix(val, "'")) {
+				val = val[1 : len(val)-1]
+			}
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			}
+		}
+		break
+	}
+}
+
+func getOrGenerateOnTheFlyThumb(originalFilePath string) ([]byte, error) {
+	thumbCacheMutex.RLock()
+	cached, exists := thumbCache[originalFilePath]
+	thumbCacheMutex.RUnlock()
+
+	if exists {
+		return cached, nil
+	}
+
+	srcFile, err := os.Open(originalFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer srcFile.Close()
+
+	srcImg, _, err := image.Decode(srcFile)
+	if err != nil {
+		return nil, err
+	}
+
+	bounds := srcImg.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+	if origW <= 0 || origH <= 0 {
+		return nil, fmt.Errorf("invalid image bounds")
+	}
+
+	maxDim := 400
+	targetW := maxDim
+	targetH := maxDim
+	if origW > origH {
+		targetH = int(float64(origH) * float64(maxDim) / float64(origW))
+	} else {
+		targetW = int(float64(origW) * float64(maxDim) / float64(origH))
+	}
+	if targetW <= 0 {
+		targetW = 1
+	}
+	if targetH <= 0 {
+		targetH = 1
+	}
+
+	dstImg := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
+	xdraw.BiLinear.Scale(dstImg, dstImg.Bounds(), srcImg, bounds, xdraw.Over, nil)
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dstImg, &jpeg.Options{Quality: 80}); err != nil {
+		return nil, err
+	}
+
+	resBytes := buf.Bytes()
+
+	thumbCacheMutex.Lock()
+	if len(thumbCache) > 5000 {
+		thumbCache = make(map[string][]byte)
+	}
+	thumbCache[originalFilePath] = resBytes
+	thumbCacheMutex.Unlock()
+
+	return resBytes, nil
 }

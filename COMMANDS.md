@@ -20,8 +20,18 @@ go run ./backend/main.go
 ```
 * 🌐 **URL**: `http://localhost:8880`
 
+### ⚙️ การตั้งค่าผ่านไฟล์ `.env` (Environment Variables)
+สามารถสร้างหรือแก้ไขไฟล์ `.env` ที่ Root Directory เพื่อปรับแต่งค่าเริ่มต้นของระบบได้ทันที:
+```env
+PORT=8880
+FRONTEND_DIR=frontends/1-vanilla-worker
+DISABLE_THUMBNAILS=false
+DB_URL=sqlite
+DATA_DIR=data
+```
+
 ### ⚙️ การเลือก Path หน้าบ้านที่หลังบ้าน Host (FRONTEND_DIR)
-สามารถกำหนด Environment Variable `FRONTEND_DIR` เพื่อชี้ไปยังโฟลเดอร์หน้าบ้านที่ต้องการให้ Host (ตั้งค่าเริ่มต้นเป็น `frontends/1-vanilla-worker`):
+สามารถกำหนดผ่านไฟล์ `.env` หรือ Environment Variable `FRONTEND_DIR` เพื่อชี้ไปยังโฟลเดอร์หน้าบ้านที่ต้องการให้ Host:
 ```bash
 # Host หน้าบ้าน Stack 1 (Vanilla Worker):
 FRONTEND_DIR=./frontends/1-vanilla-worker ./backend/server

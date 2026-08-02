@@ -42,3 +42,7 @@ yarn-error.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Environment Configuration
+.env
+!.env.example

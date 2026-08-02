@@ -156,7 +156,7 @@
       fetchPhotos(true);
     }
 
-    const buffer = 2600;
+    const buffer = 1000;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
 
@@ -234,6 +234,7 @@
     const img = document.createElement('img');
     img.className = 'real-img';
     img.loading = 'lazy';
+    img.decoding = 'async';
     img.src = getThumbUrl(photo);
 
     img.onload = function () {

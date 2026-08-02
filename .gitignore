@@ -11,13 +11,20 @@ backend/server
 *.dylib
 
 # Database & Generated Upload Data
-data/*.db
-data/*.db-wal
-data/*.db-shm
+data/postgres/*
+data/sqlite/*
+data/uploads/*
 data/originals/*
 data/thumbnails/*
+*.db
+*.sqlite
+*.sqlite3
+!data/postgres/.gitkeep
+!data/sqlite/.gitkeep
+!data/uploads/.gitkeep
 !data/originals/.gitkeep
 !data/thumbnails/.gitkeep
+
 
 # Build Outputs
 dist/

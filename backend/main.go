@@ -64,9 +64,10 @@ func main() {
 
 	// Static Upload Media File Server with Immutable 1-Year Cache & Fast Byte-Range Support
 	uploadsDir := filepath.Join(dataDir, "uploads")
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
-		log.Printf("Warning: Failed to create uploads directory: %v", err)
-	}
+	_ = os.MkdirAll(filepath.Join(uploadsDir, "originals"), 0755)
+	_ = os.MkdirAll(filepath.Join(uploadsDir, "thumbnails"), 0755)
+	_ = os.MkdirAll(filepath.Join(dataDir, "sqlite"), 0755)
+	_ = os.MkdirAll(filepath.Join(dataDir, "postgres"), 0755)
 	fileServer := http.FileServer(http.Dir(uploadsDir))
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

@@ -401,6 +401,8 @@ export default function App() {
           will-change: transform;
           backface-visibility: hidden;
           transform: translateZ(0);
+          content-visibility: auto;
+          contain-intrinsic-size: 220px 300px;
         }
 
         .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
@@ -453,6 +455,7 @@ export default function App() {
               src={getThumbUrl(item.photo)}
               alt={item.photo.filename || item.photo.id}
               loading="lazy"
+              decoding="async"
             />
           </div>
         ))}

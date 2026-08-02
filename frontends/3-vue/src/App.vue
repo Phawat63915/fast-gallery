@@ -22,7 +22,7 @@
       :style="{ width: (220 * (item.photo.aspect_ratio || 1.5)) + 'px' }"
       @click="openLightbox(item.globalIndex)"
     >
-      <img :src="getThumbUrl(item.photo)" :alt="item.photo.filename || item.photo.id" loading="lazy" />
+      <img :src="getThumbUrl(item.photo)" :alt="item.photo.filename || item.photo.id" loading="lazy" decoding="async" />
     </div>
     <div :style="{ height: virtualData.bottomSpacer + 'px', width: '100%' }"></div>
   </div>
@@ -515,6 +515,8 @@ function handleKeydown(e) {
   will-change: transform;
   backface-visibility: hidden;
   transform: translateZ(0);
+  content-visibility: auto;
+  contain-intrinsic-size: 220px 300px;
 }
 
 .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }

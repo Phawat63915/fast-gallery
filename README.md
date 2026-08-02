@@ -202,12 +202,12 @@ cd /root/server/git/fast-gallery
 
 | พอร์ต (Port) | บริการ (Service) | คำสั่งเปิดใช้งานรวดเร็ว (Quick Command) |
 | :--- | :--- | :--- |
-| **`8880`** | Go 1.26 Backend API | `cd backend && go run main.go` |
-| **`8881`** | Stack 1 (Vanilla Worker) | `npx serve -l 8881 frontends/1-vanilla-worker` |
-| **`8882`** | Stack 2 (Svelte 5) | `cd frontends/2-svelte && npm run dev -- --port 8882` |
-| **`8883`** | Stack 3 (Vue 3) | `cd frontends/3-vue && npm run dev -- --port 8883` |
-| **`8884`** | Stack 4 (React 19) | `cd frontends/4-react && npm run dev -- --port 8884` |
-| **`8885`** | Stack 5 (Vanilla Root) | `npx serve -l 8885 frontends/5-vanilla-root` |
+| **`9880`** | Go 1.26 Backend API | `cd backend && go run main.go` |
+| **`9881`** | Stack 1 (Vanilla Worker) | `npx serve -l 9881 frontends/1-vanilla-worker` |
+| **`9882`** | Stack 2 (Svelte 5) | `cd frontends/2-svelte && npm run dev -- --port 9882` |
+| **`9883`** | Stack 3 (Vue 3) | `cd frontends/3-vue && npm run dev -- --port 9883` |
+| **`9884`** | Stack 4 (React 19) | `cd frontends/4-react && npm run dev -- --port 9884` |
+| **`9885`** | Stack 5 (Vanilla Root) | `npx serve -l 9885 frontends/5-vanilla-root` |
 
 ---
 

@@ -42,7 +42,7 @@ func InitDB(dataDir string) (*DB, error) {
 	driver := "postgres"
 
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/fastgallery?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@localhost:5433/fastgallery?sslmode=disable"
 	}
 
 	var conn *sql.DB

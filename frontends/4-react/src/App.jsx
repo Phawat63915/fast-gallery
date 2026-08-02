@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-const API_BASE = 'http://localhost:8880';
+const API_BASE = 'http://localhost:9880';
 const preloadedCache = new Set();
 const preloadedOrder = [];
 const MAX_PRELOAD_CACHE = 50;
@@ -317,7 +317,7 @@ export default function App() {
           <div className="logo">4️⃣</div>
           <div>
             <h2>Stack 4: React 19</h2>
-            <p style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Next / React Ecosystem • Port 8884</p>
+            <p style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Next / React Ecosystem • Port 9884</p>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

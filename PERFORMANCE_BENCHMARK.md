@@ -8,11 +8,11 @@
 
 | อันดับ | หน้าบ้าน (Stack) | พอร์ต | Scripting Time / เฟรม | เฟรมเรต (FPS) | การใช้ RAM (Heap) | คะแนนความเร็ว |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| 🥇 **1** | **Vanilla JS + Web Worker** | `8881` | **0.05 ms** | **120 FPS** | **1.2 MB** | **99.8 / 100** |
-| 🥈 **2** | **Svelte 5 (Immich Engine)** | `8882` | **0.18 ms** | **120 FPS** | **2.4 MB** | **98.5 / 100** |
-| 🥉 **3** | **Vanilla Root Classic** | `8885` | **0.22 ms** | **118 FPS** | **1.8 MB** | **97.0 / 100** |
-| 4 | **Vue 3 Composition API** | `8883` | **0.42 ms** | **112 FPS** | **4.8 MB** | **92.5 / 100** |
-| 5 | **React 19 Ecosystem** | `8884` | **0.85 ms** | **105 FPS** | **7.2 MB** | **88.0 / 100** |
+| 🥇 **1** | **Vanilla JS + Web Worker** | `9881` | **0.05 ms** | **120 FPS** | **1.2 MB** | **99.8 / 100** |
+| 🥈 **2** | **Svelte 5 (Immich Engine)** | `9882` | **0.18 ms** | **120 FPS** | **2.4 MB** | **98.5 / 100** |
+| 🥉 **3** | **Vanilla Root Classic** | `9885` | **0.22 ms** | **118 FPS** | **1.8 MB** | **97.0 / 100** |
+| 4 | **Vue 3 Composition API** | `9883` | **0.42 ms** | **112 FPS** | **4.8 MB** | **92.5 / 100** |
+| 5 | **React 19 Ecosystem** | `9884` | **0.85 ms** | **105 FPS** | **7.2 MB** | **88.0 / 100** |
 
 ---
 
@@ -32,27 +32,25 @@
 > **เฟรมเวิร์กที่เร็วที่สุด (Fastest Modern Framework - ตัวเลือกหลักของ Immich)**
 
 #### 💡 จุดเด่นด้านสถาปัตยกรรม:
-1. **No Virtual DOM**: Svelte 5 คอมไพล์โค้ดเป็นคำสั่งจัดการ DOM โดยตรงด้วยเอนจินใหม่ **Runes (`$state`, `$derived.by`)**
-2. **Surgical DOM Updates**: เมื่อเกิดการเลื่อนหน้าจอ Svelte จะอัปเดตเฉพาะค่าพิกัดความสูงของ `topSpacer` และ `bottomSpacer` โดยไม่แตะต้องรูปภาพที่ไม่เปลี่ยนแปลงเลย
-3. **การประมวลผลต่อเฟรม**: ใช้เวลา Scripting เพียง **0.18ms** รองรับการเลื่อนหน้าจอระดับ **120 FPS**
+### 🥇 อันดับ 1: Stack 1 - Vanilla JS + Web Worker (Port 9881)
+- **สถาปัตยกรรม**: Web Worker (Off-thread Worker Threading) + DOM Node Recycling Engine
+- **พอร์ตการรัน**: `http://localhost:9881`
 
----
+### 🥈 อันดับ 2: Stack 2 - Svelte 5 + Runes (Port 9882)
+- **สถาปัตยกรรม**: Svelte 5 Runes (`$state`, `$derived`) + Immich-inspired Spacer Windowing
+- **พอร์ตการรัน**: `http://localhost:9882`
 
-### 🥉 อันดับ 3: Stack 5 - Vanilla Root Classic (Port 8885)
-- **คุณลักษณะ**: การเขียน Pure Vanilla JS แบบดั้งเดิม เลื่อนตำแหน่งภาพด้วย GPU Transform `translate3d(x, y, 0)` 
-- **ข้อจำกัด**: แม้จะเบาและไร้ Framework แต่การคำนวณพิกัด Layout ยังคงทำงานบน Main Thread ซึ่งเมื่อผู้ใช้ขยายขนาดหน้าจอเร็วๆ จะช้ากว่า Stack 1 เล็กน้อย
+### 🥉 อันดับ 3: Stack 5 - Vanilla Root Classic (Port 9885)
+- **สถาปัตยกรรม**: Classic Direct DOM Manipulation + Fixed Spacer Heights
+- **พอร์ตการรัน**: `http://localhost:9885`
 
----
+### 4️⃣ อันดับ 4: Stack 3 - Vue 3 Composition API (Port 9883)
+- **สถาปัตยกรรม**: Vue 3 Reactive System + Computed Properties Spacer Calculation
+- **พอร์ตการรัน**: `http://localhost:9883`
 
-### 4️⃣ อันดับ 4: Stack 3 - Vue 3 Composition API (Port 8883)
-- **คุณลักษณะ**: Vue 3 มีระบบ Proxy-based Reactivity ที่เร็วมาก อย่างไรก็ตาม การเปรียบเทียบโหนดผ่าน Virtual DOM ยังคงมี Overhead เล็กน้อยในระดับไมโครวินาทีเมื่อเทียบกับ Svelte 5
-- **ผลลัพธ์**: Scripting Time อยู่ที่ **0.42ms** และใช้ RAM อยู่ที่ **4.8 MB**
-
----
-
-### 5️⃣ อันดับ 5: Stack 4 - React 19 Ecosystem (Port 8884)
-- **คุณลักษณะ**: ช้าที่สุดในบรรดา 5 สแต็ก เนื่องจากโครงสร้าง React Fiber ต้องทำการคำนวณเปรียบเทียบ Virtual DOM Tree ซ้ำๆ ทุกครั้งที่เกิด Scroll Event (`setScrollTop`) แม้ว่าจะมี `useMemo` ช่วยแคชข้อมูลไว้แล้วก็ตาม
-- **ผลลัพธ์**: Scripting Time สูงที่สุดถึง **0.85ms** และใช้ RAM มากที่สุดอยู่ที่ **7.2 MB**
+### 5️⃣ อันดับ 5: Stack 4 - React 19 Ecosystem (Port 9884)
+- **สถาปัตยกรรม**: React 19 Fiber Reconciliation + `useMemo` Spacer Calculation
+- **พอร์ตการรัน**: `http://localhost:9884`
 
 ---
 

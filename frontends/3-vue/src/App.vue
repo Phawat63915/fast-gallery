@@ -4,7 +4,7 @@
       <div class="logo">3️⃣</div>
       <div>
         <h2>Stack 3: Vue 3</h2>
-        <p style="font-size: 0.7rem; color: #94a3b8;">Composition API • Port 8883</p>
+        <p style="font-size: 0.7rem; color: #94a3b8;">Composition API • Port 9883</p>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 16px;">
@@ -109,7 +109,7 @@ const uploadTotal = ref(0);
 const uploadPercent = ref(0);
 const uploadStatusText = ref('');
 
-const API_BASE = 'http://localhost:8880';
+const API_BASE = 'http://localhost:9880';
 const preloadedCache = new Set();
 const preloadedOrder = [];
 const MAX_PRELOAD_CACHE = 50;

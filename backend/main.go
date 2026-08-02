@@ -78,7 +78,7 @@ func main() {
 	publicServer := http.FileServer(http.Dir(frontendDir))
 	mux.Handle("/", publicServer)
 
-	port := 8880
+	port := 9880
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			port = p

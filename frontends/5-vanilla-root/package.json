@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx --yes serve . -p 8885 --single"
+    "dev": "npx --yes serve . -p 9885 --single"
   }
 }

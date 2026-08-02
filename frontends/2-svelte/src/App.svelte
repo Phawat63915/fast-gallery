@@ -24,7 +24,7 @@
   const preloadedOrder = [];
   const MAX_PRELOAD_CACHE = 50;
 
-  const API_BASE = 'http://localhost:8880';
+  const API_BASE = 'http://localhost:9880';
 
   onMount(async () => {
     await fetchPhotos();
@@ -311,7 +311,7 @@
     <div class="logo">2️⃣</div>
     <div>
       <h2>Stack 2: Svelte 5</h2>
-      <p style="font-size: 0.7rem; color: #94a3b8;">Immich Choice • Port 8882</p>
+      <p style="font-size: 0.7rem; color: #94a3b8;">Immich Choice • Port 9882</p>
     </div>
   </div>
   <div style="display: flex; align-items: center; gap: 16px;">

@@ -1,14 +1,14 @@
 services:
   db:
     image: postgres:18-alpine
-    container_name: fastgallery-db
+    container_name: fastgallery-db-light
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: fastgallery
     ports:
-      - "5432:5432"
+      - "5433:5432"
     command: >
       postgres
       -c shared_buffers=256MB

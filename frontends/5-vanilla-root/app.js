@@ -143,7 +143,7 @@
       fetchPhotos(true);
     }
 
-    const buffer = 600;
+    const buffer = 2000;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
 
@@ -232,7 +232,7 @@
 
       img = document.createElement('img');
       img.className = 'real-img';
-      img.loading = 'lazy';
+      img.loading = 'eager';
       img.decoding = 'async';
       card.appendChild(img);
 
@@ -456,7 +456,7 @@
         scrollContainer.classList.add('is-scrolling');
       }
 
-      if (velocity > 2.0) {
+      if (velocity > 8.0) {
         if (!scrollContainer.classList.contains('fast-scrolling')) {
           scrollContainer.classList.add('fast-scrolling');
         }

@@ -28,7 +28,26 @@ go run main.go
 
 ---
 
-### รูปแบบ C: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
+### รูปแบบ C: รันโหมด Production (บิลด์เป็น Binary ความเร็วสูงสุด)
+```bash
+# รันผ่านสคริปต์อัตโนมัติ
+./run-prod.sh
+
+# หรือรันทีละขั้นตอนด้วยตัวเอง:
+# 1. เริ่มรัน PostgreSQL DB
+docker compose up -d db
+
+# 2. คอมไพล์ Go ให้เป็นไฟล์ Binary
+./build.sh
+
+# 3. รันไฟล์ Executable Binary โหมด Production
+cd backend
+./server
+```
+
+---
+
+### รูปแบบ D: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
 ```bash
 ./run-all.sh
 ```

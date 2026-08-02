@@ -1,53 +1,33 @@
-# 🚀 คำสั่งพื้นฐานสำหรับรันและหยุดโปรเจกต์ Fast Gallery
+# 🚀 คำสั่งพื้นฐานสำหรับรันและหยุดโปรเจกต์ Fast Gallery (รันจาก Root Directory)
 
-คู่มือสรุปคำสั่งการเริ่มต้นระบบ (Start), การหยุดระบบ (Stop), คำสั่งจัดการภาพย่อ (CLI) และคำสั่งล้างข้อมูล (Reset) สำหรับโปรเจกต์ **Fast Gallery**
+คู่มือสรุปคำสั่งการเริ่มต้นระบบ (Start), การหยุดระบบ (Stop), คำสั่งจัดการภาพย่อ (CLI) และคำสั่งล้างข้อมูล (Reset) สามารถ **รันโดยตรงจาก Root Directory ของโฟลเดอร์โปรเจกต์** ได้ทันทีโดยไม่ต้อง `cd` ย้ายโฟลเดอร์
 
 ---
 
 ## 🟢 1. คำสั่งเริ่มต้นระบบ (Starting the Project)
 
-### รูปแบบ A: รันเฉพาะ Backend Server (SQLite Mode - ง่ายที่สุด)
-ไม่จำเป็นต้องเปิด Docker เหมาะสำหรับทดสอบระบบแบบรวดเร็ว
+### รูปแบบ A: รันแบบ Development (SQLite Mode - รันจาก Root)
 ```bash
-cd backend
-go run main.go
+go run ./backend/main.go
+# หรือรันผ่านสคริปต์
+./run-dev.sh
 ```
 * 🌐 **URL**: `http://localhost:8880`
 
 ---
 
-### รูปแบบ B: รันพร้อม PostgreSQL (Docker Mode)
+### รูปแบบ B: รันโหมด Production (บิลด์เป็น Binary ความเร็วสูงสุด)
 ```bash
-# 1. เปิดใช้งาน PostgreSQL Container
-docker compose up -d db
-
-# 2. เริ่มต้นรัน Go Backend
-cd backend
-go run main.go
-```
-
----
-
-### รูปแบบ C: รันโหมด Production (บิลด์เป็น Binary ความเร็วสูงสุด)
-```bash
-# รันผ่านสคริปต์อัตโนมัติ
+# รันผ่านสคริปต์อัตโนมัติ (รันจาก Root)
 ./run-prod.sh
 
-# หรือรันทีละขั้นตอนด้วยตัวเอง:
-# 1. เริ่มรัน PostgreSQL DB
-docker compose up -d db
-
-# 2. คอมไพล์ Go ให้เป็นไฟล์ Binary
-./build.sh
-
-# 3. รันไฟล์ Executable Binary โหมด Production
-cd backend
-./server
+# หรือรันทีละขั้นตอนจาก Root:
+docker compose up -d db && ./build.sh && ./backend/server
 ```
 
 ---
 
-### รูปแบบ D: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
+### รูปแบบ C: รันพร้อมกันทุก Frontend ทั้ง 5 Stacks (Full Suite)
 ```bash
 ./run-all.sh
 ```
@@ -69,10 +49,9 @@ cd backend
 ---
 
 ### รูปแบบ B: ปิด Process ทั้งหมดที่รันเบื้องหลัง (Background Killer)
-กรณีรันด้วย `./run-all.sh` แล้วต้องการปิดโปรเซสทั้งหมดพร้อมกัน:
 ```bash
 # หยุด Go Backend Server
-pkill -f "server" || pkill -f "go run main.go"
+pkill -f "server" || pkill -f "main.go"
 
 # หยุด Frontend ทั้งหมด (Vite & Serve)
 pkill -f "vite" || pkill -f "serve"
@@ -87,28 +66,24 @@ docker compose down
 
 ---
 
-## 🛠️ 3. คำสั่งจัดการพิเศษ (Utility Commands)
+## 🛠️ 3. คำสั่งจัดการพิเศษ (Utility Commands - รันจาก Root)
 
 ### 🖼️ คำสั่งย่อรูปภาพย้อนหลัง (CLI Thumbnail Backfill)
-ย่อรูปภาพเดิมที่ยังไม่มี Thumbnail ให้เป็นขนาด 400px (JPEG Quality 80%):
 ```bash
-cd backend
-go run ./cmd/generate-thumbnails
+go run ./backend/cmd/generate-thumbnails
 ```
-* **บังคับย่อรูปใหม่ทั้งหมด**: `go run ./cmd/generate-thumbnails --force`
+* **บังคับย่อรูปใหม่ทั้งหมด**: `go run ./backend/cmd/generate-thumbnails --force`
 
 ---
 
 ### 🧹 คำสั่งรีเซ็ตและล้างข้อมูลทั้งหมด (Reset Data)
-ล้างข้อมูลใน Database และไฟล์สื่อใน `data/` เพื่อเริ่มต้นใหม่:
 ```bash
 ./reset-data.sh
 ```
 
 ---
 
-### 🧪 คำสั่งรัน Unit Tests
+### 🧪 คำสั่งรัน Unit Tests (รันจาก Root)
 ```bash
-cd backend
-go test -v ./...
+go test -v ./backend/...
 ```

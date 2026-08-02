@@ -28,16 +28,34 @@ docker compose up -d db && ./build.sh && ./backend/server
 ---
 
 ### รูปแบบ C: รันเฉพาะ Backend + Stack 1 (Vanilla JS + Worker @ Port 8881)
+
+#### 🔹 ทางเลือกที่ 1: รันผ่านสคริปต์สั้นอัตโนมัติ
 ```bash
-# 🔹 โหมด Development (รันตรงจาก Root):
+# โหมด Development
 ./run-stack1.sh
 
-# 🔹 โหมด Production (บิลด์เป็น Binary + PostgreSQL):
+# โหมด Production
 ./run-stack1-prod.sh
-
-# หรือสั่ง manual จาก Root:
-docker compose up -d db && ./build.sh && (cd backend && ./server) & (npx serve frontends/1-vanilla-worker -p 8881 --single)
 ```
+
+#### 🔹 ทางเลือกที่ 2: รันแยก 2 หน้าต่าง Terminal ด้วยตัวเอง (คุมเอง / กด Ctrl+C เพื่อหยุดเอง)
+
+* **Terminal หน้าต่างที่ 1 (รันหลังบ้าน Backend API - Port 8880)**:
+  ```bash
+  # แบบ Dev (ง่ายสุด)
+  go run ./backend/main.go
+
+  # หรือแบบ Production (เปิด DB + บิลด์ Binary)
+  docker compose up -d db && ./build.sh && cd backend && ./server
+  ```
+  *(กด `Ctrl + C` ใน Terminal 1 เพื่อหยุดหลังบ้าน)*
+
+* **Terminal หน้าต่างที่ 2 (รันหน้าบ้าน Stack 1 - Port 8881)**:
+  ```bash
+  npx serve frontends/1-vanilla-worker -p 8881 --single
+  ```
+  *(กด `Ctrl + C` ใน Terminal 2 เพื่อหยุดหน้าบ้าน)*
+
 * 🌐 **Backend API**: `http://localhost:8880`
 * ⚡ **Stack 1 Frontend**: `http://localhost:8881`
 

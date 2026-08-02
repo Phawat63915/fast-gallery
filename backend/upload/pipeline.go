@@ -64,7 +64,6 @@ func NewPipeline(database *db.DB, baseDir string, numWorkers int, disableThumbna
 func (p *Pipeline) startWorkers() {
 	for i := 0; i < p.workers; i++ {
 		go func(workerID int) {
-			log.Printf("Starting Upload Goroutine Worker #%d", workerID)
 			for job := range p.jobChan {
 				p.processJob(job)
 			}
@@ -77,8 +76,6 @@ func (p *Pipeline) Enqueue(job UploadJob) {
 }
 
 func (p *Pipeline) processJob(job UploadJob) {
-	log.Printf("[Worker Processing] New asset: %s (%s)", job.ID, job.Filename)
-
 	file, err := os.Open(job.OriginalPath)
 	if err != nil {
 		log.Printf("Failed to open original asset %s: %v", job.OriginalPath, err)
@@ -105,7 +102,6 @@ func (p *Pipeline) processJob(job UploadJob) {
 
 		err := CreateResizedThumbnail(job.OriginalPath, thumbPath, 400, 80)
 		if err != nil {
-			log.Printf("Warning: Failed to resize thumbnail for %s: %v, falling back to direct copy", job.ID, err)
 			srcFile, err := os.Open(job.OriginalPath)
 			if err == nil {
 				dstFile, err := os.Create(thumbPath)
@@ -127,8 +123,6 @@ func (p *Pipeline) processJob(job UploadJob) {
 
 	if err := p.database.InsertPhoto(photo); err != nil {
 		log.Printf("Failed to insert uploaded photo to DB: %v", err)
-	} else {
-		log.Printf("[Upload Success] Photo %s processed & indexed in SQLite WAL!", job.ID)
 	}
 }
 

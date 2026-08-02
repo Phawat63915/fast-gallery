@@ -29,8 +29,8 @@ type Pipeline struct {
 }
 
 func NewPipeline(database *db.DB, baseDir string, numWorkers int) (*Pipeline, error) {
-	uploadDir := filepath.Join(baseDir, "originals")
-	thumbDir := filepath.Join(baseDir, "thumbnails")
+	uploadDir := filepath.Join(baseDir, "uploads", "originals")
+	thumbDir := filepath.Join(baseDir, "uploads", "thumbnails")
 
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		return nil, err

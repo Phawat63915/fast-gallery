@@ -67,10 +67,11 @@ func InitDB(dataDir string) (*DB, error) {
 	}
 
 	if driver == "sqlite" {
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
+		sqliteDir := filepath.Join(dataDir, "sqlite")
+		if err := os.MkdirAll(sqliteDir, 0755); err != nil {
 			return nil, err
 		}
-		dbPath := filepath.Join(dataDir, "gallery.db")
+		dbPath := filepath.Join(sqliteDir, "gallery.db")
 		conn, err = sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)")
 		if err != nil {
 			return nil, fmt.Errorf("failed to open sqlite db: %w", err)

@@ -57,7 +57,11 @@ func main() {
 	mux.HandleFunc("/api/stats", corsMiddleware(handleGetStats))
 
 	// Static Upload Media File Server with Immutable 1-Year Cache & Fast Byte-Range Support
-	fileServer := http.FileServer(http.Dir(dataDir))
+	uploadsDir := filepath.Join(dataDir, "uploads")
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Printf("Warning: Failed to create uploads directory: %v", err)
+	}
+	fileServer := http.FileServer(http.Dir(uploadsDir))
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

@@ -6,11 +6,17 @@
 
 ## 🟢 1. คำสั่งเริ่มต้นระบบ (Starting the Project)
 
-### รูปแบบ A: รันแบบ Development (SQLite Mode - รันจาก Root)
+### รูปแบบ A: รันเฉพาะ Backend API (SQLite Mode - ไม่ใช้ PostgreSQL / ไม่เปิด Docker)
+ไม่ต้องเปิด Docker หรือ PostgreSQL ใดๆ ระบบจะใช้ SQLite (WAL Mode) โดยอัตโนมัติ:
+
 ```bash
+# 🔹 โหมด Development (รันตรงจาก Root):
+DB_URL=sqlite go run ./backend/main.go
+# หรือคำสั่งย่อ
 go run ./backend/main.go
-# หรือรันผ่านสคริปต์
-./run-dev.sh
+
+# 🔹 โหมด Production (บิลด์เป็น Binary ความเร็วสูง - ไม่ใช้ PostgreSQL):
+./build.sh && DB_URL=sqlite ./backend/server
 ```
 * 🌐 **URL**: `http://localhost:8880`
 

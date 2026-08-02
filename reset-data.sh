@@ -32,11 +32,7 @@ if [ -d "${DATA_DIR}/uploads/thumbnails" ]; then
     find "${DATA_DIR}/uploads/thumbnails" -mindepth 1 ! -name '.gitkeep' -delete
 fi
 
-# Ensure .gitkeep placeholders are present
+# Ensure directories exist
 mkdir -p "${DATA_DIR}/sqlite" "${DATA_DIR}/postgres" "${DATA_DIR}/uploads/originals" "${DATA_DIR}/uploads/thumbnails"
-touch "${DATA_DIR}/sqlite/.gitkeep"
-touch "${DATA_DIR}/postgres/.gitkeep"
-touch "${DATA_DIR}/uploads/originals/.gitkeep"
-touch "${DATA_DIR}/uploads/thumbnails/.gitkeep"
 
 echo "✅ All database and image data have been successfully reset!"

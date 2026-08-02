@@ -104,7 +104,7 @@ func (p *Pipeline) processJob(job UploadJob) {
 		thumbFilename := job.ID + ".jpg"
 		thumbPath := filepath.Join(p.thumbDir, thumbFilename)
 
-		err := createResizedThumbnail(job.OriginalPath, thumbPath, 400, 80)
+		err := CreateResizedThumbnail(job.OriginalPath, thumbPath, 400, 80)
 		if err != nil {
 			log.Printf("Warning: Failed to resize thumbnail for %s: %v, falling back to direct copy", job.ID, err)
 			srcFile, err := os.Open(job.OriginalPath)
@@ -120,7 +120,7 @@ func (p *Pipeline) processJob(job UploadJob) {
 		microURL = fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename)
 	}
 
-	sampleThumbhash := "3QcKLQJ2d3h/eHeIeHeAePiGeHh4"
+	sampleThumbhash := "3QcKLQJ2d3h/eHiIeHeAePiGeHh4"
 
 	photo := db.Photo{
 		ID:          job.ID,
@@ -145,7 +145,7 @@ func (p *Pipeline) processJob(job UploadJob) {
 	}
 }
 
-func createResizedThumbnail(srcPath string, dstPath string, maxDim int, quality int) error {
+func CreateResizedThumbnail(srcPath string, dstPath string, maxDim int, quality int) error {
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return err

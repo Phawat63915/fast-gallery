@@ -141,3 +141,32 @@ func TestAPIUploadPhoto(t *testing.T) {
 	// Clean up dummy test assets created during testing
 	database.Exec("DELETE FROM photos WHERE id LIKE 'up_%' OR id LIKE 'test_%'")
 }
+
+func TestDisableThumbnailsOption(t *testing.T) {
+	server, tmpDir := setupTestServer(t)
+	defer server.Close()
+	defer os.RemoveAll(tmpDir)
+
+	disableThumbnails = true
+	defer func() { disableThumbnails = false }()
+
+	resp, err := http.Get(server.URL + "/api/photos?limit=5")
+	if err != nil {
+		t.Fatalf("Failed to GET /api/photos: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Photos []db.Photo `json:"photos"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		t.Fatalf("Failed to decode photos response: %v", err)
+	}
+
+	for _, photo := range data.Photos {
+		if photo.MicroURL != photo.OriginalURL {
+			t.Errorf("Expected MicroURL to equal OriginalURL when disableThumbnails=true, got MicroURL=%s, OriginalURL=%s", photo.MicroURL, photo.OriginalURL)
+		}
+	}
+}

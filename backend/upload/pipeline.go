@@ -21,14 +21,15 @@ type UploadJob struct {
 }
 
 type Pipeline struct {
-	database  *db.DB
-	uploadDir string
-	thumbDir  string
-	jobChan   chan UploadJob
-	workers   int
+	database          *db.DB
+	uploadDir         string
+	thumbDir          string
+	jobChan           chan UploadJob
+	workers           int
+	disableThumbnails bool
 }
 
-func NewPipeline(database *db.DB, baseDir string, numWorkers int) (*Pipeline, error) {
+func NewPipeline(database *db.DB, baseDir string, numWorkers int, disableThumbnails ...bool) (*Pipeline, error) {
 	uploadDir := filepath.Join(baseDir, "uploads", "originals")
 	thumbDir := filepath.Join(baseDir, "uploads", "thumbnails")
 
@@ -39,12 +40,18 @@ func NewPipeline(database *db.DB, baseDir string, numWorkers int) (*Pipeline, er
 		return nil, err
 	}
 
+	isDisabled := false
+	if len(disableThumbnails) > 0 {
+		isDisabled = disableThumbnails[0]
+	}
+
 	p := &Pipeline{
-		database:  database,
-		uploadDir: uploadDir,
-		thumbDir:  thumbDir,
-		jobChan:   make(chan UploadJob, 100),
-		workers:   numWorkers,
+		database:          database,
+		uploadDir:         uploadDir,
+		thumbDir:          thumbDir,
+		jobChan:           make(chan UploadJob, 100),
+		workers:           numWorkers,
+		disableThumbnails: isDisabled,
 	}
 
 	p.startWorkers()
@@ -87,17 +94,23 @@ func (p *Pipeline) processJob(job UploadJob) {
 		aspectRatio = float64(width) / float64(height)
 	}
 
-	thumbFilename := job.ID + ".jpg"
-	thumbPath := filepath.Join(p.thumbDir, thumbFilename)
+	originalURL := fmt.Sprintf("/uploads/originals/%s", filepath.Base(job.OriginalPath))
+	microURL := originalURL
 
-	srcFile, err := os.Open(job.OriginalPath)
-	if err == nil {
-		dstFile, err := os.Create(thumbPath)
+	if !p.disableThumbnails {
+		thumbFilename := job.ID + ".jpg"
+		thumbPath := filepath.Join(p.thumbDir, thumbFilename)
+
+		srcFile, err := os.Open(job.OriginalPath)
 		if err == nil {
-			io.Copy(dstFile, srcFile)
-			dstFile.Close()
+			dstFile, err := os.Create(thumbPath)
+			if err == nil {
+				io.Copy(dstFile, srcFile)
+				dstFile.Close()
+			}
+			srcFile.Close()
 		}
-		srcFile.Close()
+		microURL = fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename)
 	}
 
 	sampleThumbhash := "3QcKLQJ2d3h/eHiIeHeAePiGeHh4"
@@ -110,8 +123,8 @@ func (p *Pipeline) processJob(job UploadJob) {
 		Width:       width,
 		Height:      height,
 		Thumbhash:   sampleThumbhash,
-		MicroURL:    fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename),
-		OriginalURL: fmt.Sprintf("/uploads/originals/%s", filepath.Base(job.OriginalPath)),
+		MicroURL:    microURL,
+		OriginalURL: originalURL,
 		CameraMake:  "Immich Go Upload",
 		CameraModel: "High-Speed Ingestion",
 		ISO:         100,

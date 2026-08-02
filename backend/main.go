@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	database  *db.DB
-	pipeline  *upload.Pipeline
-	startTime time.Time
+	database          *db.DB
+	pipeline          *upload.Pipeline
+	startTime         time.Time
+	disableThumbnails bool
 
 	// Sub-millisecond JSON Response Cache for /api/photos
 	apiCacheMutex sync.RWMutex
@@ -31,6 +32,11 @@ var (
 func main() {
 	startTime = time.Now()
 	log.Println("Starting Immich FastGallery Server (High-Performance Go Backend)...")
+
+	disableThumbnails = os.Getenv("DISABLE_THUMBNAILS") == "true"
+	if disableThumbnails {
+		log.Println("⚡ Config Enabled: DISABLE_THUMBNAILS=true -> Serving original images as micro_url directly!")
+	}
 
 	dataDir := findDir("data", "../data")
 	frontendDir := findDir("frontend", "../frontend")
@@ -44,7 +50,7 @@ func main() {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
 
-	pipeline, err = upload.NewPipeline(database, dataDir, runtime.NumCPU())
+	pipeline, err = upload.NewPipeline(database, dataDir, runtime.NumCPU(), disableThumbnails)
 	if err != nil {
 		log.Fatalf("Fatal: Upload pipeline initialization failed: %v", err)
 	}
@@ -71,6 +77,16 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
+		if disableThumbnails && strings.HasPrefix(r.URL.Path, "thumbnails/") {
+			relPath := strings.TrimPrefix(r.URL.Path, "thumbnails/")
+			originalFilePath := filepath.Join(uploadsDir, "originals", relPath)
+			if _, err := os.Stat(originalFilePath); err == nil {
+				http.ServeFile(w, r, originalFilePath)
+				return
+			}
+		}
+
 		fileServer.ServeHTTP(w, r)
 	})))
 
@@ -157,6 +173,12 @@ func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Query error: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	if disableThumbnails {
+		for i := range photos {
+			photos[i].MicroURL = photos[i].OriginalURL
+		}
 	}
 
 	var nextCursor int64 = 0

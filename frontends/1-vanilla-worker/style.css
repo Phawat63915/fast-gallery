@@ -69,7 +69,6 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   backface-visibility: hidden;
   transform: translateZ(0);
   contain: strict;
-  content-visibility: auto;
 }
 
 /* [PERF] filter: blur(6px) ลบออก → ใช้ overflow crop trick แทน (0 GPU cost)

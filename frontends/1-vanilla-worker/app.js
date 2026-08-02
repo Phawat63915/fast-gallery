@@ -156,7 +156,7 @@
       img.onerror = null;
       img.dataset.src = '';
     }
-    if (state.nodePool.length < 80) {
+    if (state.nodePool.length < 250) {
       state.nodePool.push(card);
     }
   }
@@ -318,11 +318,11 @@
   function scheduleIdlePrefetch(currentIndex, direction = 1) {
     const runPrefetch = () => {
       if (!state.photos || state.photos.length === 0) return;
-      for (let step = 1; step <= 15; step++) {
+      for (let step = 1; step <= 30; step++) {
         const targetIdx = (currentIndex + (step * direction) + state.photos.length) % state.photos.length;
         prefetchSingleUrl(state.photos[targetIdx]);
       }
-      for (let step = 1; step <= 8; step++) {
+      for (let step = 1; step <= 15; step++) {
         const targetIdx = (currentIndex - (step * direction) + state.photos.length) % state.photos.length;
         prefetchSingleUrl(state.photos[targetIdx]);
       }

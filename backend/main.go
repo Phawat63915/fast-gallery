@@ -104,12 +104,6 @@ func main() {
 			relPath := strings.TrimPrefix(r.URL.Path, "thumbnails/")
 			originalFilePath := filepath.Join(uploadsDir, "originals", relPath)
 			if _, err := os.Stat(originalFilePath); err == nil {
-				if thumbBytes, err := getOrGenerateOnTheFlyThumb(originalFilePath); err == nil {
-					w.Header().Set("Content-Type", "image/jpeg")
-					w.Header().Set("Content-Length", strconv.Itoa(len(thumbBytes)))
-					w.Write(thumbBytes)
-					return
-				}
 				http.ServeFile(w, r, originalFilePath)
 				return
 			}

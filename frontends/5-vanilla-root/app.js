@@ -175,7 +175,7 @@
         if (!scrollContainer.classList.contains('fast-scrolling')) {
           const img = node.querySelector('img');
           const thumbUrl = getThumbUrl(photo);
-          if (img && img.dataset.src !== thumbUrl) {
+          if (img && (img.dataset.src !== thumbUrl || !img.src)) {
             img.dataset.src = thumbUrl;
             img.src = thumbUrl;
           }
@@ -252,7 +252,7 @@
     const thumbUrl = getThumbUrl(photo);
     const isFastScroll = scrollContainer.classList.contains('fast-scrolling');
 
-    if (img.dataset.src !== thumbUrl) {
+    if (img.dataset.src !== thumbUrl || !img.src) {
       img.classList.remove('loaded');
       img.dataset.src = thumbUrl;
       img.onload = function () {
@@ -262,6 +262,8 @@
       };
       if (!isFastScroll) {
         img.src = thumbUrl;
+      } else {
+        img.dataset.src = '';
       }
     } else if (img.complete && img.naturalWidth > 0) {
       img.classList.add('loaded');
@@ -280,9 +282,15 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    if (!thumbhashStr) {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, 32, 32);
+      return;
+    }
+
     const grad = ctx.createLinearGradient(0, 0, 32, 32);
     let hashNum = 0;
-    for (let i = 0; i < (thumbhashStr || '').length; i++) {
+    for (let i = 0; i < thumbhashStr.length; i++) {
       hashNum = (hashNum << 5) - hashNum + thumbhashStr.charCodeAt(i);
     }
 

@@ -18,7 +18,7 @@
   let uploadTotal = $state(0);
   let uploadPercent = $state(0);
   let uploadStatusText = $state('');
-  let isExifOpen = $state(true);
+  let isExifOpen = $state(false);
 
   // Lightbox Zoom & Pan State
   let zoomScale = $state(1.0);

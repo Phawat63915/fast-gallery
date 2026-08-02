@@ -124,7 +124,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 const photos = ref([]);
 const currentPhotoIndex = ref(-1);
 const isLightboxOpen = ref(false);
-const isExifOpen = ref(true);
+const isExifOpen = ref(false);
 const isUploadOpen = ref(false);
 const ramAlloc = ref('-- MB');
 const fileInput = ref(null);

@@ -49,19 +49,19 @@
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <button id="btn-zoom-toggle" class="icon-btn" title="Zoom (Click / Wheel)">🔍</button>
-        <button id="btn-exif-toggle" class="icon-btn active" title="Toggle EXIF Info">ℹ️</button>
-        <button id="btn-close-lightbox" class="close-btn" title="Close">&times;</button>
+        <button id="btn-exif-toggle" class="icon-btn" title="Toggle EXIF Info">ℹ️</button>
+        <button id="btn-close-lightbox" class="icon-btn" title="Close (Esc)">✕</button>
       </div>
     </div>
     <div class="lightbox-body">
-      <button id="btn-prev-photo" class="nav-arrow nav-prev">&#10094;</button>
-      <div id="lightbox-stage" class="lightbox-stage">
-        <div id="lightbox-img-wrapper" class="lightbox-img-wrapper">
-          <img id="lightbox-img" src="" alt="Fullscreen asset">
+      <div class="lightbox-stage">
+        <button id="btn-prev-photo" class="nav-arrow nav-prev">‹</button>
+        <div class="lightbox-img-wrapper">
+          <img id="lightbox-img" src="" alt="Enlarged view">
         </div>
+        <button id="btn-next-photo" class="nav-arrow nav-next">›</button>
       </div>
-      <button id="btn-next-photo" class="nav-arrow nav-next">&#10095;</button>
-      <aside id="exif-drawer" class="exif-drawer">
+      <aside id="exif-drawer" class="exif-drawer" style="display: none;">
         <h4 id="exif-title">Photo Title</h4>
         <p id="exif-date" class="exif-sub">Date taken</p>
         <div class="exif-section" style="margin-top: 12px;">

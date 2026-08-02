@@ -9,7 +9,7 @@ export default function App() {
   const [photos, setPhotos] = useState([]);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(-1);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const [isExifOpen, setIsExifOpen] = useState(true);
+  const [isExifOpen, setIsExifOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [ramAlloc, setRamAlloc] = useState('-- MB');
   const [scrollTop, setScrollTop] = useState(0);

@@ -328,9 +328,9 @@ func (db *DB) SeedBenchmarkPhotos(count int) {
 		height := int(float64(width) / ar)
 		thumbhash := sampleThumbhashes[i%len(sampleThumbhashes)]
 		
-		imgBase := sampleImageURLs[i%len(sampleImageURLs)]
-		microURL := fmt.Sprintf("%s?auto=format&fit=crop&w=400&q=80", imgBase)
-		originalURL := fmt.Sprintf("%s?auto=format&fit=crop&w=1920&q=90", imgBase)
+		picsumID := (i % 60) + 10
+		microURL := fmt.Sprintf("https://picsum.photos/id/%d/400/300", picsumID)
+		originalURL := fmt.Sprintf("https://picsum.photos/id/%d/1200/900", picsumID)
 
 		camInfo := sampleCameras[i%len(sampleCameras)]
 		isoVal := 100

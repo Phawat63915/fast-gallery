@@ -324,7 +324,7 @@
   <div style="height: {virtualData.topSpacer}px; width: 100%;"></div>
   {#each virtualData.items as item (item.photo.id)}
     <div class="tile" style="width: {220 * (item.photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(item.globalIndex)}>
-      <img src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`} alt={item.photo.title} loading="lazy" />
+      <img src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`} alt={item.photo.title} />
     </div>
   {/each}
   <div style="height: {virtualData.bottomSpacer}px; width: 100%;"></div>

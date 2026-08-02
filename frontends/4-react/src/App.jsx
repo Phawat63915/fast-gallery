@@ -338,7 +338,6 @@ export default function App() {
             <img
               src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`}
               alt={item.photo.title}
-              loading="lazy"
             />
           </div>
         ))}

@@ -22,7 +22,7 @@
       :style="{ width: (220 * (item.photo.aspect_ratio || 1.5)) + 'px' }"
       @click="openLightbox(item.globalIndex)"
     >
-      <img :src="item.photo.micro_url.startsWith('http') ? item.photo.micro_url : API_BASE + item.photo.micro_url" :alt="item.photo.title" loading="lazy" />
+      <img :src="item.photo.micro_url.startsWith('http') ? item.photo.micro_url : API_BASE + item.photo.micro_url" :alt="item.photo.title" />
     </div>
     <div :style="{ height: virtualData.bottomSpacer + 'px', width: '100%' }"></div>
   </div>

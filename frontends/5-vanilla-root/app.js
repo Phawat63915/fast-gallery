@@ -149,9 +149,7 @@
 
     const img = document.createElement('img');
     img.className = 'real-img';
-    img.loading = 'lazy';
     img.src = photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`;
-    img.onload = function () { img.classList.add('loaded'); };
     card.appendChild(img);
 
     card.addEventListener('click', () => {

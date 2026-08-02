@@ -127,6 +127,13 @@
 
   function recyclePhotoCard(card) {
     card.remove();
+    const img = card.querySelector('img');
+    if (img) {
+      img.classList.remove('loaded');
+      img.onload = null;
+      img.onerror = null;
+      img.dataset.src = '';
+    }
     if (state.nodePool.length < 80) {
       state.nodePool.push(card);
     }
@@ -177,7 +184,20 @@
           const thumbUrl = getThumbUrl(photo);
           if (img && (img.dataset.src !== thumbUrl || !img.src)) {
             img.dataset.src = thumbUrl;
+            img.onload = function () {
+              if (img.dataset.src === thumbUrl) {
+                img.classList.add('loaded');
+              }
+            };
+            img.onerror = function () {
+              if (img.dataset.src === thumbUrl) {
+                img.classList.add('loaded');
+              }
+            };
             img.src = thumbUrl;
+            if (img.complete && img.naturalWidth > 0) {
+              img.classList.add('loaded');
+            }
           }
         }
       } else {
@@ -260,8 +280,16 @@
           img.classList.add('loaded');
         }
       };
+      img.onerror = function () {
+        if (img.dataset.src === thumbUrl) {
+          img.classList.add('loaded');
+        }
+      };
       if (!isFastScroll) {
         img.src = thumbUrl;
+        if (img.complete && img.naturalWidth > 0) {
+          img.classList.add('loaded');
+        }
       } else {
         img.dataset.src = '';
       }

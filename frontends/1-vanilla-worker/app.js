@@ -201,11 +201,28 @@
     }
   }
 
+  function getThumbUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+    }
+    const fallback = photo.micro_url || photo.original_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
+  function getOriginalUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+    }
+    const fallback = photo.original_url || photo.micro_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
   function createPhotoCard(item) {
     const { photo, width, height } = item;
-
     const card = document.createElement('div');
-    card.className = 'photo-card';
+    card.className = 'tile photo-card';
     card.style.width = `${width}px`;
     card.style.height = `${height}px`;
 
@@ -217,7 +234,7 @@
     const img = document.createElement('img');
     img.className = 'real-img';
     img.loading = 'lazy';
-    img.src = photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`;
+    img.src = getThumbUrl(photo);
 
     img.onload = function () {
       img.classList.add('loaded');
@@ -276,24 +293,19 @@
 
   function prefetchSingleUrl(photo) {
     if (!photo) return;
-    const urls = [
-      photo.original_url ? (photo.original_url.startsWith('http') ? photo.original_url : `${API_BASE}${photo.original_url}`) : null,
-      photo.micro_url ? (photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`) : null,
-    ].filter(Boolean);
+    const url = getOriginalUrl(photo);
 
-    for (let url of urls) {
-      if (!state.preloadedCache.has(url)) {
-        if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
-          const oldestUrl = state.preloadedOrder.shift();
-          state.preloadedCache.delete(oldestUrl);
-        }
-        state.preloadedCache.add(url);
-        state.preloadedOrder.push(url);
-
-        const img = new Image();
-        img.src = url;
-        if (img.decode) img.decode().catch(() => {});
+    if (!state.preloadedCache.has(url)) {
+      if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+        const oldestUrl = state.preloadedOrder.shift();
+        state.preloadedCache.delete(oldestUrl);
       }
+      state.preloadedCache.add(url);
+      state.preloadedOrder.push(url);
+
+      const img = new Image();
+      img.src = url;
+      if (img.decode) img.decode().catch(() => {});
     }
   }
 
@@ -334,25 +346,23 @@
   // Realtime 0ms Instant Image Swap
   function openLightbox(index, direction = 1) {
     if (index < 0 || index >= state.photos.length) return;
-    resetZoom();
+
     state.currentPhotoIndex = index;
-    state.lastDirection = direction;
+    resetZoom();
 
     const photo = state.photos[index];
-    const targetURL = (photo.original_url || photo.micro_url).startsWith('http')
-      ? (photo.original_url || photo.micro_url)
-      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    const targetURL = getOriginalUrl(photo);
 
     lightboxImg.src = targetURL;
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
-    if (lightboxFilename) lightboxFilename.textContent = photo.title || 'Untitled Image';
+    if (lightboxFilename) lightboxFilename.textContent = photo.filename || photo.id || 'Untitled Image';
 
-    if (exifTitle) exifTitle.textContent = photo.title || 'Untitled Image';
+    if (exifTitle) exifTitle.textContent = photo.filename || photo.id || 'Untitled Image';
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     if (exifCamera) exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`.trim();
     if (exifFocal) exifFocal.textContent = photo.focal_length || '35mm';
     if (exifIso) exifIso.textContent = photo.iso ? `ISO ${photo.iso}` : 'ISO 100';
-    if (exifRes) exifRes.textContent = `${photo.width || 1920} × ${photo.height || 1080}`;
+    if (exifRes) exifRes.textContent = `${photo.width || 1920} × ${photo.height || 1080}`;;
 
     lightboxModal.classList.remove('hidden');
 

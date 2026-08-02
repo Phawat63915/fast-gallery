@@ -50,18 +50,9 @@ func TestInsertAndQueryPhoto(t *testing.T) {
 
 	testPhoto := Photo{
 		ID:          "test_unit_001",
-		Title:       "Test Sunset Photo",
+		Filename:    "test_unit_001.jpg",
 		CreatedAt:   time.Now().UnixMilli(),
 		AspectRatio: 1.5,
-		Width:       1920,
-		Height:      1280,
-		Thumbhash:   "1QcSHQR2d3l/iHiHeHeAePh2d3h4",
-		MicroURL:    "/uploads/thumbnails/test_unit_001.jpg",
-		OriginalURL: "/uploads/originals/test_unit_001.jpg",
-		CameraMake:  "Sony",
-		CameraModel: "A7 IV",
-		ISO:         100,
-		FocalLength: "35mm",
 	}
 
 	err = database.InsertPhoto(testPhoto)
@@ -82,11 +73,8 @@ func TestInsertAndQueryPhoto(t *testing.T) {
 	for _, p := range photos {
 		if p.ID == testPhoto.ID {
 			found = true
-			if p.Title != testPhoto.Title {
-				t.Errorf("Expected title %s, got %s", testPhoto.Title, p.Title)
-			}
-			if p.CameraModel != testPhoto.CameraModel {
-				t.Errorf("Expected camera model %s, got %s", testPhoto.CameraModel, p.CameraModel)
+			if p.Filename != testPhoto.Filename {
+				t.Errorf("Expected filename %s, got %s", testPhoto.Filename, p.Filename)
 			}
 			break
 		}

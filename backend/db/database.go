@@ -17,18 +17,9 @@ import (
 
 type Photo struct {
 	ID          string  `json:"id"`
-	Title       string  `json:"title"`
+	Filename    string  `json:"filename"`
 	CreatedAt   int64   `json:"created_at"`
 	AspectRatio float64 `json:"aspect_ratio"`
-	Width       int     `json:"width"`
-	Height      int     `json:"height"`
-	Thumbhash   string  `json:"thumbhash"`
-	MicroURL    string  `json:"micro_url"`
-	OriginalURL string  `json:"original_url"`
-	CameraMake  string  `json:"camera_make"`
-	CameraModel string  `json:"camera_model"`
-	ISO         int     `json:"iso"`
-	FocalLength string  `json:"focal_length"`
 }
 
 type DB struct {
@@ -111,40 +102,20 @@ func (db *DB) migrateSchema() error {
 		schema = `
 		CREATE TABLE IF NOT EXISTS photos (
 			id VARCHAR(255) PRIMARY KEY,
-			title TEXT NOT NULL,
+			filename TEXT NOT NULL,
 			created_at BIGINT NOT NULL,
-			aspect_ratio DOUBLE PRECISION NOT NULL,
-			width INT NOT NULL,
-			height INT NOT NULL,
-			thumbhash TEXT NOT NULL,
-			micro_url TEXT NOT NULL,
-			original_url TEXT NOT NULL,
-			camera_make TEXT,
-			camera_model TEXT,
-			iso INT,
-			focal_length TEXT
+			aspect_ratio DOUBLE PRECISION NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_id ON photos (created_at DESC, id);
-		CREATE EXTENSION IF NOT EXISTS pg_trgm;
-		CREATE INDEX IF NOT EXISTS idx_photos_title_trgm ON photos USING gin (title gin_trgm_ops);
 		`
 	} else {
 		schema = `
 		CREATE TABLE IF NOT EXISTS photos (
 			id TEXT PRIMARY KEY,
-			title TEXT NOT NULL,
+			filename TEXT NOT NULL,
 			created_at INTEGER NOT NULL,
-			aspect_ratio REAL NOT NULL,
-			width INTEGER NOT NULL,
-			height INTEGER NOT NULL,
-			thumbhash TEXT NOT NULL,
-			micro_url TEXT NOT NULL,
-			original_url TEXT NOT NULL,
-			camera_make TEXT,
-			camera_model TEXT,
-			iso INTEGER,
-			focal_length TEXT
+			aspect_ratio REAL NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
 		`
@@ -167,22 +138,18 @@ func (db *DB) GetPhotos(cursor int64, limit int) ([]Photo, error) {
 
 	if db.driver == "postgres" {
 		if cursor > 0 {
-			query := `SELECT id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length 
-					  FROM photos WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length 
-					  FROM photos ORDER BY created_at DESC LIMIT $1`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC LIMIT $1`
 			rows, err = db.conn.Query(query, limit)
 		}
 	} else {
 		if cursor > 0 {
-			query := `SELECT id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length 
-					  FROM photos WHERE created_at < ? ORDER BY created_at DESC LIMIT ?`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at < ? ORDER BY created_at DESC LIMIT ?`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length 
-					  FROM photos ORDER BY created_at DESC LIMIT ?`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC LIMIT ?`
 			rows, err = db.conn.Query(query, limit)
 		}
 	}
@@ -195,11 +162,7 @@ func (db *DB) GetPhotos(cursor int64, limit int) ([]Photo, error) {
 	photos := make([]Photo, 0, limit)
 	for rows.Next() {
 		var p Photo
-		err := rows.Scan(
-			&p.ID, &p.Title, &p.CreatedAt, &p.AspectRatio, &p.Width, &p.Height,
-			&p.Thumbhash, &p.MicroURL, &p.OriginalURL, &p.CameraMake, &p.CameraModel,
-			&p.ISO, &p.FocalLength,
-		)
+		err := rows.Scan(&p.ID, &p.Filename, &p.CreatedAt, &p.AspectRatio)
 		if err != nil {
 			return nil, err
 		}
@@ -215,26 +178,15 @@ func (db *DB) InsertPhoto(p Photo) error {
 
 	var query string
 	if db.driver == "postgres" {
-		query = `INSERT INTO photos 
-		(id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		query = `INSERT INTO photos (id, filename, created_at, aspect_ratio)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE SET
-		title=EXCLUDED.title, created_at=EXCLUDED.created_at, aspect_ratio=EXCLUDED.aspect_ratio,
-		width=EXCLUDED.width, height=EXCLUDED.height, thumbhash=EXCLUDED.thumbhash,
-		micro_url=EXCLUDED.micro_url, original_url=EXCLUDED.original_url,
-		camera_make=EXCLUDED.camera_make, camera_model=EXCLUDED.camera_model,
-		iso=EXCLUDED.iso, focal_length=EXCLUDED.focal_length`
+		filename=EXCLUDED.filename, created_at=EXCLUDED.created_at, aspect_ratio=EXCLUDED.aspect_ratio`
 	} else {
-		query = `INSERT OR REPLACE INTO photos 
-		(id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		query = `INSERT OR REPLACE INTO photos (id, filename, created_at, aspect_ratio) VALUES (?, ?, ?, ?)`
 	}
 
-	_, err := db.conn.Exec(query,
-		p.ID, p.Title, p.CreatedAt, p.AspectRatio, p.Width, p.Height,
-		p.Thumbhash, p.MicroURL, p.OriginalURL, p.CameraMake, p.CameraModel,
-		p.ISO, p.FocalLength,
-	)
+	_, err := db.conn.Exec(query, p.ID, p.Filename, p.CreatedAt, p.AspectRatio)
 	return err
 }
 
@@ -257,35 +209,6 @@ func (db *DB) Close() error {
 	return db.conn.Close()
 }
 
-var sampleThumbhashes = []string{
-	"1QcSHQR2d3l/iHiHeHeAePh2d3h4",
-	"3PcJJQJ2h4d/iHiId3eAePiGeHh4",
-	"1gcJHQR2eHeAiHiHeHeAePh2e3h4",
-	"3QcKLQJ2d3h/eHiIeHeAePiGeHh4",
-	"1AcSHQR2eHd/iHiHeHeAePh2d3h4",
-}
-
-var sampleCameras = [][]string{
-	{"Sony", "A7 IV", "24mm f/1.4", "100"},
-	{"Canon", "EOS R5", "50mm f/1.2", "200"},
-	{"Fujifilm", "X-T5", "35mm f/1.4", "160"},
-	{"Nikon", "Z8", "85mm f/1.8", "400"},
-	{"Leica", "M11", "35mm f/2.0", "100"},
-}
-
-var sampleImageURLs = []string{
-	"https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-	"https://images.unsplash.com/photo-1511884642898-4c92249e20b6",
-	"https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05",
-	"https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
-	"https://images.unsplash.com/photo-1472214103451-9374bd1c798e",
-	"https://images.unsplash.com/photo-1469474968028-56623f02e42e",
-	"https://images.unsplash.com/photo-1501785888041-af3ef285b470",
-	"https://images.unsplash.com/photo-1447752875215-b2761acb3c5d",
-	"https://images.unsplash.com/photo-1532274402911-5a369e4c4bb5",
-	"https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-}
-
 func (db *DB) SeedBenchmarkPhotos(count int) {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -295,14 +218,9 @@ func (db *DB) SeedBenchmarkPhotos(count int) {
 
 	var stmt *sql.Stmt
 	if db.driver == "postgres" {
-		stmt, err = tx.Prepare(`INSERT INTO photos 
-		(id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-		ON CONFLICT (id) DO NOTHING`)
+		stmt, err = tx.Prepare(`INSERT INTO photos (id, filename, created_at, aspect_ratio) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`)
 	} else {
-		stmt, err = tx.Prepare(`INSERT OR REPLACE INTO photos 
-		(id, title, created_at, aspect_ratio, width, height, thumbhash, micro_url, original_url, camera_make, camera_model, iso, focal_length)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		stmt, err = tx.Prepare(`INSERT OR REPLACE INTO photos (id, filename, created_at, aspect_ratio) VALUES (?, ?, ?, ?)`)
 	}
 
 	if err != nil {
@@ -317,25 +235,11 @@ func (db *DB) SeedBenchmarkPhotos(count int) {
 
 	for i := 0; i < count; i++ {
 		id := fmt.Sprintf("photo_%06d", i+1)
-		title := fmt.Sprintf("Immich Fast Shot #%d", i+1)
+		filename := fmt.Sprintf("photo_%06d.jpg", i+1)
 		createdAt := now - int64(i*1800000+rand.Intn(300000))
 		ar := aspectRatios[i%len(aspectRatios)]
-		width := 1920
-		height := int(float64(width) / ar)
-		thumbhash := sampleThumbhashes[i%len(sampleThumbhashes)]
-		
-		imgBase := sampleImageURLs[i%len(sampleImageURLs)]
-		microURL := fmt.Sprintf("%s?auto=format&fit=crop&w=400&q=80", imgBase)
-		originalURL := fmt.Sprintf("%s?auto=format&fit=crop&w=1920&q=90", imgBase)
 
-		camInfo := sampleCameras[i%len(sampleCameras)]
-		isoVal := 100
-		fmt.Sscanf(camInfo[3], "%d", &isoVal)
-
-		_, err := stmt.Exec(
-			id, title, createdAt, ar, width, height,
-			thumbhash, microURL, originalURL, camInfo[0], camInfo[1], isoVal, camInfo[2],
-		)
+		_, err := stmt.Exec(id, filename, createdAt, ar)
 		if err != nil {
 			log.Printf("Error seeding item %d: %v", i, err)
 		}

@@ -135,6 +135,24 @@
     if (scrollTop + viewportHeight >= state.totalGridHeight - 800 && !state.isLoading && state.hasMore) fetchPhotos(true);
   }
 
+  function getThumbUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+    }
+    const fallback = photo.micro_url || photo.original_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
+  function getOriginalUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+    }
+    const fallback = photo.original_url || photo.micro_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
   function createPhotoCard(item) {
     const { photo, width, height } = item;
     const card = document.createElement('div');
@@ -150,7 +168,7 @@
     const img = document.createElement('img');
     img.className = 'real-img';
     img.loading = 'lazy';
-    img.src = photo.micro_url.startsWith('http') ? photo.micro_url : `${API_BASE}${photo.micro_url}`;
+    img.src = getThumbUrl(photo);
     img.onload = function () { img.classList.add('loaded'); };
     card.appendChild(img);
 
@@ -192,9 +210,7 @@
 
   function prefetchSingleUrl(photo) {
     if (!photo) return;
-    const url = (photo.original_url || photo.micro_url).startsWith('http')
-      ? (photo.original_url || photo.micro_url)
-      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    const url = getOriginalUrl(photo);
     if (!state.preloadedCache.has(url)) {
       if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
         const oldest = state.preloadedOrder.shift();
@@ -214,10 +230,10 @@
     if (index < 0 || index >= state.photos.length) return;
     state.currentPhotoIndex = index;
     const photo = state.photos[index];
-    lightboxImg.src = (photo.original_url || photo.micro_url).startsWith('http') ? (photo.original_url || photo.micro_url) : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    lightboxImg.src = getOriginalUrl(photo);
     lightboxCounter.textContent = `${index + 1} / ${state.photos.length}`;
-    if (lightboxFilename) lightboxFilename.textContent = photo.title || 'Untitled Image';
-    if (exifTitle) exifTitle.textContent = photo.title || 'Untitled Image';
+    if (lightboxFilename) lightboxFilename.textContent = photo.filename || photo.id || 'Untitled Image';
+    if (exifTitle) exifTitle.textContent = photo.filename || photo.id || 'Untitled Image';
     if (exifDate) exifDate.textContent = new Date(photo.created_at).toLocaleString('th-TH');
     if (exifCamera) exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`.trim();
     if (exifFocal) exifFocal.textContent = photo.focal_length || '35mm';

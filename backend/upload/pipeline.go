@@ -97,11 +97,10 @@ func (p *Pipeline) processJob(job UploadJob) {
 		aspectRatio = float64(width) / float64(height)
 	}
 
-	originalURL := fmt.Sprintf("/uploads/originals/%s", filepath.Base(job.OriginalPath))
-	microURL := originalURL
+	filename := filepath.Base(job.OriginalPath)
 
 	if !p.disableThumbnails {
-		thumbFilename := job.ID + ".jpg"
+		thumbFilename := filepath.Base(job.OriginalPath)
 		thumbPath := filepath.Join(p.thumbDir, thumbFilename)
 
 		err := CreateResizedThumbnail(job.OriginalPath, thumbPath, 400, 80)
@@ -117,25 +116,13 @@ func (p *Pipeline) processJob(job UploadJob) {
 				srcFile.Close()
 			}
 		}
-		microURL = fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename)
 	}
-
-	sampleThumbhash := "3QcKLQJ2d3h/eHiIeHeAePiGeHh4"
 
 	photo := db.Photo{
 		ID:          job.ID,
-		Title:       job.Filename,
+		Filename:    filename,
 		CreatedAt:   job.CreatedAt.UnixMilli(),
 		AspectRatio: aspectRatio,
-		Width:       width,
-		Height:      height,
-		Thumbhash:   sampleThumbhash,
-		MicroURL:    microURL,
-		OriginalURL: originalURL,
-		CameraMake:  "Immich Go Upload",
-		CameraModel: "High-Speed Ingestion",
-		ISO:         100,
-		FocalLength: "35mm",
 	}
 
 	if err := p.database.InsertPhoto(photo); err != nil {

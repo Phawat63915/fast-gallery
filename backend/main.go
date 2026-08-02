@@ -175,12 +175,6 @@ func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if disableThumbnails {
-		for i := range photos {
-			photos[i].MicroURL = photos[i].OriginalURL
-		}
-	}
-
 	var nextCursor int64 = 0
 	if len(photos) > 0 {
 		nextCursor = photos[len(photos)-1].CreatedAt

@@ -4,12 +4,10 @@ import (
 	"fast-gallery/backend/db"
 	"fast-gallery/backend/upload"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -93,24 +91,12 @@ func main() {
 			defer wg.Done()
 			for job := range jobs {
 				photo := job.Photo
-				thumbFilename := photo.ID + ".jpg"
+				thumbFilename := photo.Filename
 				thumbPath := filepath.Join(thumbDir, thumbFilename)
-
-				// Determine original image path on disk
-				var origPath string
-				if strings.HasPrefix(photo.OriginalURL, "/uploads/originals/") {
-					origPath = filepath.Join(origDir, filepath.Base(photo.OriginalURL))
-				} else if strings.HasPrefix(photo.OriginalURL, "http") {
-					// External URL sample data (e.g. Unsplash), skip disk resizing
-					atomic.AddInt64(&skippedCount, 1)
-					continue
-				} else {
-					origPath = filepath.Join(origDir, filepath.Base(photo.OriginalURL))
-				}
+				origPath := filepath.Join(origDir, photo.Filename)
 
 				if !forceFlag {
-					// Check if thumbnail file already exists on disk
-					if _, err := os.Stat(thumbPath); err == nil && strings.HasPrefix(photo.MicroURL, "/uploads/thumbnails/") {
+					if _, err := os.Stat(thumbPath); err == nil {
 						atomic.AddInt64(&skippedCount, 1)
 						continue
 					}
@@ -122,17 +108,8 @@ func main() {
 					continue
 				}
 
-				// Generate 400px resized thumbnail
 				if err := upload.CreateResizedThumbnail(origPath, thumbPath, maxDimFlag, qualityFlag); err != nil {
 					log.Printf("❌ Error: Failed to create thumbnail for photo %s: %v", photo.ID, err)
-					atomic.AddInt64(&failedCount, 1)
-					continue
-				}
-
-				// Update photo record in database
-				photo.MicroURL = fmt.Sprintf("/uploads/thumbnails/%s", thumbFilename)
-				if err := database.InsertPhoto(photo); err != nil {
-					log.Printf("❌ Error: Failed to update DB for photo %s: %v", photo.ID, err)
 					atomic.AddInt64(&failedCount, 1)
 					continue
 				}

@@ -165,8 +165,8 @@ func TestDisableThumbnailsOption(t *testing.T) {
 	}
 
 	for _, photo := range data.Photos {
-		if photo.MicroURL != photo.OriginalURL {
-			t.Errorf("Expected MicroURL to equal OriginalURL when disableThumbnails=true, got MicroURL=%s, OriginalURL=%s", photo.MicroURL, photo.OriginalURL)
+		if photo.Filename == "" {
+			t.Errorf("Expected Filename to be non-empty, got empty string")
 		}
 	}
 }

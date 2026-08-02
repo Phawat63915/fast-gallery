@@ -107,11 +107,27 @@ export default function App() {
     }
   }
 
+  function getThumbUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+    }
+    const fallback = photo.micro_url || photo.original_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
+  function getOriginalUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+    }
+    const fallback = photo.original_url || photo.micro_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
   function prefetchSingleUrl(photo) {
     if (!photo) return;
-    const url = (photo.original_url || photo.micro_url).startsWith('http')
-      ? (photo.original_url || photo.micro_url)
-      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    const url = getOriginalUrl(photo);
     if (!preloadedCache.has(url)) {
       if (preloadedOrder.length >= MAX_PRELOAD_CACHE) {
         const oldest = preloadedOrder.shift();
@@ -336,8 +352,8 @@ export default function App() {
             onClick={() => openLightbox(item.globalIndex)}
           >
             <img
-              src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`}
-              alt={item.photo.title}
+              src={getThumbUrl(item.photo)}
+              alt={item.photo.filename || item.photo.id}
               loading="lazy"
             />
           </div>
@@ -351,7 +367,7 @@ export default function App() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, flex: 1 }}>
               <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{currentPhotoIndex + 1} / {photos.length}</span>
               <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '600px' }}>
-                {photos[currentPhotoIndex].title || 'Untitled Image'}
+                {photos[currentPhotoIndex].filename || photos[currentPhotoIndex].id}
               </span>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -363,11 +379,7 @@ export default function App() {
             <div className="lightbox-stage">
               <button className="arrow prev" onClick={() => navigate(-1)}>&#10094;</button>
               <img
-                src={
-                  photos[currentPhotoIndex].original_url.startsWith('http')
-                    ? photos[currentPhotoIndex].original_url
-                    : `${API_BASE}${photos[currentPhotoIndex].original_url}`
-                }
+                src={getOriginalUrl(photos[currentPhotoIndex])}
                 alt=""
               />
               <button className="arrow next" onClick={() => navigate(1)}>&#10095;</button>

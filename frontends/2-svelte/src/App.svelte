@@ -125,11 +125,27 @@
     }
   }
 
+  function getThumbUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+    }
+    const fallback = photo.micro_url || photo.original_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
+  function getOriginalUrl(photo) {
+    if (!photo) return '';
+    if (photo.filename) {
+      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+    }
+    const fallback = photo.original_url || photo.micro_url || '';
+    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+  }
+
   function prefetchSingleUrl(photo) {
     if (!photo) return;
-    const url = (photo.original_url || photo.micro_url).startsWith('http')
-      ? (photo.original_url || photo.micro_url)
-      : `${API_BASE}${photo.original_url || photo.micro_url}`;
+    const url = getOriginalUrl(photo);
     if (!preloadedCache.has(url)) {
       if (preloadedOrder.length >= MAX_PRELOAD_CACHE) {
         const oldest = preloadedOrder.shift();
@@ -324,7 +340,7 @@
   <div style="height: {virtualData.topSpacer}px; width: 100%;"></div>
   {#each virtualData.items as item (item.photo.id)}
     <div class="tile" style="width: {220 * (item.photo.aspect_ratio || 1.5)}px;" onclick={() => openLightbox(item.globalIndex)}>
-      <img src={item.photo.micro_url.startsWith('http') ? item.photo.micro_url : `${API_BASE}${item.photo.micro_url}`} alt={item.photo.title} loading="lazy" />
+      <img src={getThumbUrl(item.photo)} alt={item.photo.filename || item.photo.id} loading="lazy" />
     </div>
   {/each}
   <div style="height: {virtualData.bottomSpacer}px; width: 100%;"></div>
@@ -335,7 +351,7 @@
     <div class="lightbox-bar">
       <div style="display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1;">
         <span style="font-size: 0.85rem; color: #94a3b8;">{currentPhotoIndex + 1} / {photos.length}</span>
-        <span style="font-weight: 600; font-size: 0.9rem; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px;">{photos[currentPhotoIndex].title || 'Untitled Image'}</span>
+        <span style="font-weight: 600; font-size: 0.9rem; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px;">{photos[currentPhotoIndex].filename || photos[currentPhotoIndex].id}</span>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <button class="icon-btn {isExifOpen ? 'active' : ''}" onclick={() => isExifOpen = !isExifOpen} title="Toggle EXIF Info">ℹ️</button>
@@ -345,7 +361,7 @@
     <div style="flex: 1; display: flex; overflow: hidden;">
       <div class="lightbox-stage">
         <button class="arrow prev" onclick={() => navigate(-1)}>&#10094;</button>
-        <img src={photos[currentPhotoIndex].original_url.startsWith('http') ? photos[currentPhotoIndex].original_url : `${API_BASE}${photos[currentPhotoIndex].original_url}`} alt="" />
+        <img src={getOriginalUrl(photos[currentPhotoIndex])} alt="" />
         <button class="arrow next" onclick={() => navigate(1)}>&#10095;</button>
       </div>
       {#if isExifOpen}

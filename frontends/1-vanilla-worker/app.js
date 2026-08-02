@@ -146,6 +146,11 @@
     return result;
   }
 
+  function recyclePhotoCard(card) {
+    card.remove();
+    state.nodePool.push(card);
+  }
+
   function renderVirtualGrid() {
     if (!state.layoutRows || state.layoutRows.length === 0) return;
 
@@ -156,7 +161,7 @@
       fetchPhotos(true);
     }
 
-    const buffer = 1000;
+    const buffer = 600;
     const startY = Math.max(0, scrollTop - buffer);
     const endY = scrollTop + viewportHeight + buffer;
 
@@ -175,7 +180,7 @@
 
     for (let [id, node] of state.activeNodes.entries()) {
       if (!currentVisibleKeys.has(id)) {
-        node.remove();
+        recyclePhotoCard(node);
         state.activeNodes.delete(id);
       }
     }
@@ -187,7 +192,7 @@
         const node = state.activeNodes.get(photo.id);
         node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       } else {
-        const card = createPhotoCard(item);
+        const card = acquirePhotoCard(item);
         card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         virtualGrid.appendChild(card);
         state.activeNodes.set(photo.id, card);
@@ -219,38 +224,62 @@
     return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
   }
 
-  function createPhotoCard(item) {
+  function acquirePhotoCard(item) {
     const { photo, width, height } = item;
-    const card = document.createElement('div');
-    card.className = 'tile photo-card';
+    let card;
+    let canvas;
+    let img;
+
+    if (state.nodePool.length > 0) {
+      card = state.nodePool.pop();
+      canvas = card.querySelector('canvas');
+      img = card.querySelector('img');
+    } else {
+      card = document.createElement('div');
+      card.className = 'tile photo-card';
+      canvas = document.createElement('canvas');
+      canvas.className = 'thumbhash-canvas';
+      card.appendChild(canvas);
+
+      img = document.createElement('img');
+      img.className = 'real-img';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      card.appendChild(img);
+
+      card.addEventListener('click', () => {
+        const photoId = card.dataset.photoId;
+        const idx = state.photos.findIndex(p => p.id === photoId);
+        if (idx >= 0) openLightbox(idx);
+      });
+    }
+
     card.style.width = `${width}px`;
     card.style.height = `${height}px`;
+    card.dataset.photoId = photo.id;
 
-    const canvas = document.createElement('canvas');
-    canvas.className = 'thumbhash-canvas';
     drawThumbhashPlaceholder(canvas, photo.thumbhash);
-    card.appendChild(canvas);
 
-    const img = document.createElement('img');
-    img.className = 'real-img';
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.src = getThumbUrl(photo);
-
-    img.onload = function () {
-      img.classList.add('loaded');
-    };
-    card.appendChild(img);
-
-    card.addEventListener('click', () => {
-      const idx = state.photos.findIndex(p => p.id === photo.id);
-      openLightbox(idx >= 0 ? idx : 0);
-    });
+    const thumbUrl = getThumbUrl(photo);
+    if (img.dataset.src !== thumbUrl) {
+      img.classList.remove('loaded');
+      img.dataset.src = thumbUrl;
+      img.onload = function () {
+        if (img.dataset.src === thumbUrl) {
+          img.classList.add('loaded');
+        }
+      };
+      img.src = thumbUrl;
+    }
 
     return card;
   }
 
   function drawThumbhashPlaceholder(canvas, thumbhashStr) {
+    const hash = thumbhashStr || 'none';
+    if (canvas.dataset.hash === hash) return;
+    canvas.dataset.hash = hash;
+
     canvas.width = 32;
     canvas.height = 32;
     const ctx = canvas.getContext('2d');
@@ -614,6 +643,90 @@
     if (btnCloseUpload) {
       btnCloseUpload.addEventListener('click', () => {
         uploadModal.classList.add('hidden');
+      });
+    }
+
+    // Upload Modal Tab Switching
+    const tabBatchUpload = document.getElementById('tab-batch-upload');
+    const tabCustomUrl = document.getElementById('tab-custom-url');
+    const sectionBatchUpload = document.getElementById('section-batch-upload');
+    const sectionCustomUrl = document.getElementById('section-custom-url');
+    const inputCustomUrl = document.getElementById('input-custom-url');
+    const btnAddCustomUrl = document.getElementById('btn-add-custom-url');
+    const customUrlStatus = document.getElementById('custom-url-status');
+
+    if (tabBatchUpload && tabCustomUrl) {
+      tabBatchUpload.addEventListener('click', () => {
+        tabBatchUpload.classList.add('active');
+        tabCustomUrl.classList.remove('active');
+        sectionBatchUpload.classList.remove('hidden');
+        sectionCustomUrl.classList.add('hidden');
+      });
+      tabCustomUrl.addEventListener('click', () => {
+        tabCustomUrl.classList.add('active');
+        tabBatchUpload.classList.remove('active');
+        sectionCustomUrl.classList.add('hidden');
+        sectionCustomUrl.classList.remove('hidden');
+      });
+    }
+
+    if (btnAddCustomUrl && inputCustomUrl) {
+      const addCustomPhoto = async () => {
+        const url = inputCustomUrl.value.trim();
+        if (!url) {
+          customUrlStatus.style.color = '#ef4444';
+          customUrlStatus.textContent = 'Please enter a valid image URL.';
+          return;
+        }
+
+        customUrlStatus.style.color = '#06b6d4';
+        customUrlStatus.textContent = 'Verifying image URL...';
+
+        const imgLoader = new Image();
+        const finishAdd = (aspectRatio, w, h) => {
+          const newPhoto = {
+            id: `custom_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            filename: url,
+            original_url: url,
+            micro_url: url,
+            aspect_ratio: aspectRatio,
+            created_at: Date.now(),
+            camera_make: 'Custom Web Link',
+            camera_model: 'Direct Import',
+            width: w || 1920,
+            height: h || 1080
+          };
+
+          state.photos.unshift(newPhoto);
+          statTotal.textContent = state.photos.length.toLocaleString();
+          computeLayout();
+
+          inputCustomUrl.value = '';
+          customUrlStatus.style.color = '#10b981';
+          customUrlStatus.textContent = 'Photo added successfully!';
+          setTimeout(() => {
+            uploadModal.classList.add('hidden');
+            customUrlStatus.textContent = '';
+          }, 600);
+        };
+
+        imgLoader.onload = () => {
+          const ar = (imgLoader.naturalWidth && imgLoader.naturalHeight)
+            ? (imgLoader.naturalWidth / imgLoader.naturalHeight)
+            : 1.5;
+          finishAdd(ar, imgLoader.naturalWidth, imgLoader.naturalHeight);
+        };
+
+        imgLoader.onerror = () => {
+          finishAdd(1.5, 1920, 1080);
+        };
+
+        imgLoader.src = url;
+      };
+
+      btnAddCustomUrl.addEventListener('click', addCustomPhoto);
+      inputCustomUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addCustomPhoto();
       });
     }
   }

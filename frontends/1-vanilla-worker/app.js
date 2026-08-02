@@ -700,7 +700,17 @@
         customUrlStatus.textContent = 'Verifying image URL...';
 
         const imgLoader = new Image();
-        const finishAdd = (aspectRatio, w, h) => {
+        const finishAdd = async (aspectRatio, w, h) => {
+          try {
+            await fetch(`${API_BASE}/api/photos/url`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: url, aspect_ratio: aspectRatio, width: w || 1920, height: h || 1080 }),
+            });
+          } catch (e) {
+            console.error(e);
+          }
+
           const newPhoto = {
             id: `custom_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
             filename: url,

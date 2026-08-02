@@ -178,7 +178,7 @@ func (db *DB) InsertPhoto(p Photo) error {
 	defer db.mu.Unlock()
 
 	// Auto-cleanup dummy benchmark photos (photo_%) only ONCE on first real photo upload
-	if !db.dummiesCleaned && strings.HasPrefix(p.ID, "up_") {
+	if !db.dummiesCleaned && (strings.HasPrefix(p.ID, "up_") || strings.HasPrefix(p.ID, "custom_")) {
 		_, _ = db.conn.Exec(`DELETE FROM photos WHERE id LIKE 'photo_%'`)
 		db.dummiesCleaned = true
 	}

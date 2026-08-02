@@ -179,26 +179,10 @@
       if (state.activeNodes.has(photo.id)) {
         const node = state.activeNodes.get(photo.id);
         node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        if (!scrollContainer.classList.contains('fast-scrolling')) {
-          const img = node.querySelector('img');
-          const thumbUrl = getThumbUrl(photo);
-          if (img && (img.dataset.src !== thumbUrl || !img.src)) {
-            img.dataset.src = thumbUrl;
-            img.onload = function () {
-              if (img.dataset.src === thumbUrl) {
-                img.classList.add('loaded');
-              }
-            };
-            img.onerror = function () {
-              if (img.dataset.src === thumbUrl) {
-                img.classList.add('loaded');
-              }
-            };
-            img.src = thumbUrl;
-            if (img.complete && img.naturalWidth > 0) {
-              img.classList.add('loaded');
-            }
-          }
+        const img = node.querySelector('img');
+        const thumbUrl = getThumbUrl(photo);
+        if (img && img.src !== thumbUrl) {
+          img.src = thumbUrl;
         }
       } else {
         const card = acquirePhotoCard(item);
@@ -270,31 +254,8 @@
     drawThumbhashPlaceholder(canvas, photo.thumbhash);
 
     const thumbUrl = getThumbUrl(photo);
-    const isFastScroll = scrollContainer.classList.contains('fast-scrolling');
-
-    if (img.dataset.src !== thumbUrl || !img.src) {
-      img.classList.remove('loaded');
-      img.dataset.src = thumbUrl;
-      img.onload = function () {
-        if (img.dataset.src === thumbUrl) {
-          img.classList.add('loaded');
-        }
-      };
-      img.onerror = function () {
-        if (img.dataset.src === thumbUrl) {
-          img.classList.add('loaded');
-        }
-      };
-      if (!isFastScroll) {
-        img.src = thumbUrl;
-        if (img.complete && img.naturalWidth > 0) {
-          img.classList.add('loaded');
-        }
-      } else {
-        img.dataset.src = '';
-      }
-    } else if (img.complete && img.naturalWidth > 0) {
-      img.classList.add('loaded');
+    if (img.src !== thumbUrl) {
+      img.src = thumbUrl;
     }
 
     return card;

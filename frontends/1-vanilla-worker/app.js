@@ -77,7 +77,7 @@
 
   const imageTextureMap = new Map();
   const textureLRU = [];
-  const MAX_TEXTURE_CACHE = 80;
+  const MAX_TEXTURE_CACHE = 250;
 
   function fetchImageTexture(url) {
     if (!url) return null;
@@ -98,22 +98,26 @@
 
     if (window.createImageBitmap) {
       fetch(url)
-        .then(res => res.blob())
-        .then(blob => createImageBitmap(blob))
-        .then(bitmap => {
-          imageTextureMap.set(url, bitmap);
-          textureLRU.push(url);
-          requestAnimationFrame(renderVirtualGrid);
+        .then(res => {
+          if (!res.ok) {
+            imageTextureMap.delete(url);
+            return null;
+          }
+          return res.blob();
         })
-        .catch(() => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = url;
-          img.onload = () => {
-            imageTextureMap.set(url, img);
+        .then(blob => {
+          if (!blob) return null;
+          return createImageBitmap(blob);
+        })
+        .then(bitmap => {
+          if (bitmap) {
+            imageTextureMap.set(url, bitmap);
             textureLRU.push(url);
             requestAnimationFrame(renderVirtualGrid);
-          };
+          }
+        })
+        .catch(() => {
+          imageTextureMap.delete(url);
         });
     } else {
       const img = new Image();
@@ -123,6 +127,9 @@
         imageTextureMap.set(url, img);
         textureLRU.push(url);
         requestAnimationFrame(renderVirtualGrid);
+      };
+      img.onerror = () => {
+        imageTextureMap.delete(url);
       };
     }
 

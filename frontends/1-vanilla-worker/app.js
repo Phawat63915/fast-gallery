@@ -289,14 +289,6 @@
       } else {
         drawThumbhashQuad(ctxStage, photo, x, targetY, width, height);
       }
-
-      if (photo.filename && photo.filename.toLowerCase().endsWith('.avif')) {
-        ctxStage.fillStyle = 'rgba(16, 185, 129, 0.9)';
-        ctxStage.fillRect(x + width - 36, targetY + 6, 30, 14);
-        ctxStage.fillStyle = '#ffffff';
-        ctxStage.font = 'bold 9px sans-serif';
-        ctxStage.fillText('AVIF', x + width - 32, targetY + 16);
-      }
     }
 
     ctxStage.restore();

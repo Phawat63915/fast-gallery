@@ -45,7 +45,10 @@
   const MAX_PRELOAD_CACHE = 50;
 
   const scrollContainer = document.getElementById('scroll-container');
-  const virtualGrid = document.getElementById('virtual-grid');
+  const galleryStageCanvas = document.getElementById('gallery-stage-canvas');
+  const scrollSpacer = document.getElementById('scroll-spacer');
+  const ctxStage = galleryStageCanvas ? galleryStageCanvas.getContext('2d', { alpha: false }) : null;
+
   const statTotal = document.getElementById('stat-total');
   const statFps = document.getElementById('stat-fps');
   const statRam = document.getElementById('stat-ram');
@@ -72,6 +75,73 @@
   const exifIso = document.getElementById('exif-iso');
   const exifRes = document.getElementById('exif-res');
 
+  const imageTextureMap = new Map();
+  const textureLRU = [];
+  const MAX_TEXTURE_CACHE = 80;
+
+  function fetchImageTexture(url) {
+    if (!url) return null;
+    if (imageTextureMap.has(url)) {
+      return imageTextureMap.get(url);
+    }
+
+    if (textureLRU.length >= MAX_TEXTURE_CACHE) {
+      const oldestUrl = textureLRU.shift();
+      const oldestBmp = imageTextureMap.get(oldestUrl);
+      if (oldestBmp && oldestBmp.close) {
+        oldestBmp.close();
+      }
+      imageTextureMap.delete(oldestUrl);
+    }
+
+    imageTextureMap.set(url, null);
+
+    if (window.createImageBitmap) {
+      fetch(url)
+        .then(res => res.blob())
+        .then(blob => createImageBitmap(blob))
+        .then(bitmap => {
+          imageTextureMap.set(url, bitmap);
+          textureLRU.push(url);
+          requestAnimationFrame(renderVirtualGrid);
+        })
+        .catch(() => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = url;
+          img.onload = () => {
+            imageTextureMap.set(url, img);
+            textureLRU.push(url);
+            requestAnimationFrame(renderVirtualGrid);
+          };
+        });
+    } else {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      img.onload = () => {
+        imageTextureMap.set(url, img);
+        textureLRU.push(url);
+        requestAnimationFrame(renderVirtualGrid);
+      };
+    }
+
+    return null;
+  }
+
+  function resizeStageCanvas() {
+    if (!galleryStageCanvas || !scrollContainer) return;
+    const rect = scrollContainer.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const targetW = Math.floor(rect.width * dpr);
+    const targetH = Math.floor(rect.height * dpr);
+
+    if (galleryStageCanvas.width !== targetW || galleryStageCanvas.height !== targetH) {
+      galleryStageCanvas.width = targetW;
+      galleryStageCanvas.height = targetH;
+    }
+  }
+
   let layoutWorker = new Worker('layout-worker.js');
 
   layoutWorker.onmessage = function (e) {
@@ -79,7 +149,10 @@
     state.layoutRows = rows;
     state.totalGridHeight = totalHeight;
 
-    virtualGrid.style.height = `${totalHeight}px`;
+    if (scrollSpacer) {
+      scrollSpacer.style.height = `${totalHeight}px`;
+    }
+    resizeStageCanvas();
     renderVirtualGrid();
   };
 
@@ -107,11 +180,6 @@
           state.hasMore = false;
         }
         computeLayout(isAppend);
-        // Instant Warmup: Prefetch top 100 images into browser memory cache immediately!
-        const warmupCount = Math.min(100, state.photos.length);
-        for (let i = 0; i < warmupCount; i++) {
-          prefetchSingleUrl(state.photos[i]);
-        }
       } else {
         state.hasMore = false;
       }
@@ -157,34 +225,44 @@
     return result;
   }
 
-  function recyclePhotoCard(card) {
-    card.remove();
-    const img = card.querySelector('img');
-    if (img) {
-      img.classList.remove('loaded');
-      img.onload = null;
-      img.onerror = null;
-      img.dataset.src = '';
-      img.src = '';
+  function drawThumbhashQuad(ctx, photo, x, y, width, height) {
+    const hashStr = photo.thumbhash || photo.id || '';
+    let hashNum = 0;
+    for (let i = 0; i < hashStr.length; i++) {
+      hashNum = (hashNum << 5) - hashNum + hashStr.charCodeAt(i);
     }
-    if (state.nodePool.length < 250) {
-      state.nodePool.push(card);
-    }
+    const c1 = `hsl(${Math.abs(hashNum) % 360}, 55%, 35%)`;
+    const c2 = `hsl(${Math.abs(hashNum * 7) % 360}, 45%, 20%)`;
+
+    const grad = ctx.createLinearGradient(x, y, x + width, y + height);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, width, height);
   }
 
   function renderVirtualGrid() {
-    if (!state.layoutRows || state.layoutRows.length === 0) return;
+    if (!ctxStage || !state.layoutRows || state.layoutRows.length === 0) return;
+
+    resizeStageCanvas();
+
+    const rect = scrollContainer.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const canvasW = galleryStageCanvas.width;
+    const canvasH = galleryStageCanvas.height;
+
+    ctxStage.fillStyle = '#0b0f19';
+    ctxStage.fillRect(0, 0, canvasW, canvasH);
 
     const scrollTop = scrollContainer.scrollTop;
-    const viewportHeight = scrollContainer.clientHeight;
+    const viewportHeight = rect.height;
 
     if (scrollTop + viewportHeight >= state.totalGridHeight - 1500 && state.hasMore && !state.isLoading) {
       fetchPhotos(true);
     }
 
-    const buffer = 2600;
-    const startY = Math.max(0, scrollTop - buffer);
-    const endY = scrollTop + viewportHeight + buffer;
+    const startY = Math.max(0, scrollTop - 400);
+    const endY = scrollTop + viewportHeight + 400;
 
     const visibleItems = [];
     const startRowIdx = binarySearchStartRow(state.layoutRows, startY);
@@ -197,53 +275,33 @@
       }
     }
 
-    const currentVisibleKeys = new Set(visibleItems.map(item => item.photo.id));
-
-    for (let [id, node] of state.activeNodes.entries()) {
-      if (!currentVisibleKeys.has(id)) {
-        recyclePhotoCard(node);
-        state.activeNodes.delete(id);
-      }
-    }
+    ctxStage.save();
+    ctxStage.scale(dpr, dpr);
 
     for (let item of visibleItems) {
       const { photo, x, y, width, height } = item;
+      const targetY = y - scrollTop;
+      const thumbUrl = getThumbUrl(photo);
+      const texture = fetchImageTexture(thumbUrl);
 
-      if (state.activeNodes.has(photo.id)) {
-        const node = state.activeNodes.get(photo.id);
-        node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        const img = node.querySelector('img');
-        const thumbUrl = getThumbUrl(photo);
-        if (img && img.src !== thumbUrl) {
-          img.src = thumbUrl;
-          if (img.decode) img.decode().catch(() => {});
-        }
+      if (texture) {
+        ctxStage.drawImage(texture, x, targetY, width, height);
       } else {
-        const card = acquirePhotoCard(item);
-        card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        virtualGrid.appendChild(card);
-        state.activeNodes.set(photo.id, card);
-        const img = card.querySelector('img');
-        if (img && img.decode) img.decode().catch(() => {});
+        drawThumbhashQuad(ctxStage, photo, x, targetY, width, height);
+      }
+
+      if (photo.filename && photo.filename.toLowerCase().endsWith('.avif')) {
+        ctxStage.fillStyle = 'rgba(16, 185, 129, 0.9)';
+        ctxStage.fillRect(x + width - 36, targetY + 6, 30, 14);
+        ctxStage.fillStyle = '#ffffff';
+        ctxStage.font = 'bold 9px sans-serif';
+        ctxStage.fillText('AVIF', x + width - 32, targetY + 16);
       }
     }
 
-    // Off-thread pre-decode upcoming photos in GPU VRAM
-    const maxRow = Math.min(state.layoutRows.length, startRowIdx + 20);
-    for (let r = startRowIdx; r < maxRow; r++) {
-      const row = state.layoutRows[r];
-      if (row && row.items) {
-        for (let i = 0; i < row.items.length; i++) {
-          predecodeUpcomingPhoto(row.items[i].photo);
-        }
-      }
-    }
+    ctxStage.restore();
 
-    statDom.textContent = state.activeNodes.size;
-
-    if (scrollTop + viewportHeight >= state.totalGridHeight - 800 && !state.isLoading && state.hasMore) {
-      fetchPhotos(true);
-    }
+    statDom.textContent = '0 (Single Canvas)';
   }
 
   function predecodeUpcomingPhoto(photo) {
@@ -284,6 +342,208 @@
     return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
   }
 
+  let webgpuDevice = null;
+
+  async function getWebGPUDevice() {
+    if (webgpuDevice) return webgpuDevice;
+    if (typeof navigator === 'undefined' || !navigator.gpu) return null;
+    try {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) return null;
+      webgpuDevice = await adapter.requestDevice();
+      return webgpuDevice;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  const wgslCode = `
+    struct VertexOutput {
+      @builtin(position) Position : vec4<f32>,
+      @location(0) fragUV : vec2<f32>,
+    };
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
+      var pos = array<vec2<f32>, 6>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>( 1.0, -1.0),
+        vec2<f32>(-1.0,  1.0),
+        vec2<f32>(-1.0,  1.0),
+        vec2<f32>( 1.0, -1.0),
+        vec2<f32>( 1.0,  1.0)
+      );
+      var uv = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(1.0, 1.0),
+        vec2<f32>(1.0, 0.0)
+      );
+
+      var output : VertexOutput;
+      output.Position = vec4<f32>(pos[VertexIndex], 0.0, 1.0);
+      output.fragUV = uv[VertexIndex];
+      return output;
+    }
+
+    @group(0) @binding(0) var mySampler: sampler;
+    @group(0) @binding(1) var myTexture: texture_2d<f32>;
+
+    @fragment
+    fn fs_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
+      return textureSample(myTexture, mySampler, fragUV);
+    }
+  `;
+
+  async function renderImageToWebGPUCanvas(canvas, imgElement) {
+    if (!canvas || !imgElement || !imgElement.complete || !imgElement.naturalWidth) return false;
+
+    const device = await getWebGPUDevice();
+    if (!device) return false;
+
+    try {
+      canvas.width = imgElement.naturalWidth;
+      canvas.height = imgElement.naturalHeight;
+
+      const context = canvas.getContext('webgpu');
+      if (!context) return false;
+
+      const format = navigator.gpu.getPreferredCanvasFormat();
+      context.configure({ device, format, alphaMode: 'opaque' });
+
+      const shaderModule = device.createShaderModule({ code: wgslCode });
+      const pipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: shaderModule, entryPoint: 'vs_main' },
+        fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      const texture = device.createTexture({
+        size: [canvas.width, canvas.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+      device.queue.copyExternalImageToTexture(
+        { source: imgElement },
+        { texture: texture },
+        [canvas.width, canvas.height]
+      );
+
+      const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: sampler },
+          { binding: 1, resource: texture.createView() },
+        ],
+      });
+
+      const commandEncoder = device.createCommandEncoder();
+      const textureView = context.getCurrentTexture().createView();
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{ view: textureView, clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
+      });
+
+      renderPass.setPipeline(pipeline);
+      renderPass.setBindGroup(0, bindGroup);
+      renderPass.draw(6, 1, 0, 0);
+      renderPass.end();
+
+      device.queue.submit([commandEncoder.finish()]);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  const vsSource = `
+    attribute vec2 aPosition;
+    attribute vec2 aTexCoord;
+    varying vec2 vTexCoord;
+    void main() {
+      gl_Position = vec4(aPosition, 0.0, 1.0);
+      vTexCoord = aTexCoord;
+    }
+  `;
+
+  const fsSource = `
+    precision mediump float;
+    varying vec2 vTexCoord;
+    uniform sampler2D uSampler;
+    void main() {
+      gl_FragColor = texture2D(uSampler, vTexCoord);
+    }
+  `;
+
+  function renderImageToWebGLCanvas(canvas, imgElement) {
+    if (!canvas || !imgElement || !imgElement.complete || !imgElement.naturalWidth) return;
+
+    canvas.width = imgElement.naturalWidth;
+    canvas.height = imgElement.naturalHeight;
+
+    let gl = canvas.getContext('webgl', { alpha: false });
+    if (!gl) gl = canvas.getContext('experimental-webgl');
+    if (!gl) return;
+
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, vsSource);
+    gl.compileShader(vs);
+
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, fsSource);
+    gl.compileShader(fs);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    const vertices = new Float32Array([
+      -1, -1,  0, 1,
+       1, -1,  1, 1,
+      -1,  1,  0, 0,
+      -1,  1,  0, 0,
+       1, -1,  1, 1,
+       1,  1,  1, 0
+    ]);
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const aPos = gl.getAttribLocation(program, 'aPosition');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
+
+    const aTex = gl.getAttribLocation(program, 'aTexCoord');
+    gl.enableVertexAttribArray(aTex);
+    gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgElement);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  async function renderImageToGPUCanvas(canvas, imgElement) {
+    const successGPU = await renderImageToWebGPUCanvas(canvas, imgElement);
+    if (!successGPU) {
+      renderImageToWebGLCanvas(canvas, imgElement);
+    }
+  }
+
   function acquirePhotoCard(item) {
     const { photo, width, height } = item;
     let card;
@@ -322,7 +582,13 @@
 
     const thumbUrl = getThumbUrl(photo);
     if (img.src !== thumbUrl) {
+      img.onload = () => {
+        renderImageToGPUCanvas(canvas, img);
+      };
       img.src = thumbUrl;
+      if (img.complete) {
+        renderImageToGPUCanvas(canvas, img);
+      }
     }
 
     return card;
@@ -505,7 +771,34 @@
       }
     }, { passive: true });
 
-    window.addEventListener('resize', computeLayout);
+    if (galleryStageCanvas) {
+      galleryStageCanvas.addEventListener('click', (e) => {
+        if (!state.layoutRows || state.layoutRows.length === 0) return;
+        const rect = galleryStageCanvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top + scrollContainer.scrollTop;
+
+        for (let r = 0; r < state.layoutRows.length; r++) {
+          const row = state.layoutRows[r];
+          if (clickY >= row.y && clickY <= row.y + row.height) {
+            for (let i = 0; i < row.items.length; i++) {
+              const item = row.items[i];
+              if (clickX >= item.x && clickX <= item.x + item.width) {
+                const photoId = item.photo.id;
+                const idx = state.photos.findIndex(p => p.id === photoId);
+                if (idx >= 0) openLightbox(idx);
+                return;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      resizeStageCanvas();
+      computeLayout();
+    });
 
     lightboxModal.addEventListener('wheel', (e) => {
       if (state.zoomScale > 1.0 || e.ctrlKey) {

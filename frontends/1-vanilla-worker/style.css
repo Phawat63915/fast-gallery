@@ -55,6 +55,9 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   z-index: 1;
   pointer-events: auto;
   cursor: pointer;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .scroll-spacer {

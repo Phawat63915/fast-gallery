@@ -107,7 +107,7 @@
         })
         .then(blob => {
           if (!blob) return null;
-          return createImageBitmap(blob);
+          return createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' });
         })
         .then(bitmap => {
           if (bitmap) {
@@ -136,9 +136,15 @@
     return null;
   }
 
+  let cachedViewportWidth = 1920;
+  let cachedViewportHeight = 1080;
+
   function resizeStageCanvas() {
     if (!galleryStageCanvas || !scrollContainer) return;
     const rect = scrollContainer.getBoundingClientRect();
+    cachedViewportWidth = rect.width;
+    cachedViewportHeight = rect.height;
+
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const targetW = Math.floor(rect.width * dpr);
     const targetH = Math.floor(rect.height * dpr);
@@ -253,7 +259,6 @@
 
     resizeStageCanvas();
 
-    const rect = scrollContainer.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const canvasW = galleryStageCanvas.width;
     const canvasH = galleryStageCanvas.height;
@@ -265,7 +270,7 @@
     ctxStage.imageSmoothingQuality = 'high';
 
     const scrollTop = scrollContainer.scrollTop;
-    const viewportHeight = rect.height;
+    const viewportHeight = cachedViewportHeight || 1080;
 
     if (scrollTop + viewportHeight >= state.totalGridHeight - 1500 && state.hasMore && !state.isLoading) {
       fetchPhotos(true);

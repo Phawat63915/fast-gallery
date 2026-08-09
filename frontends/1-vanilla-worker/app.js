@@ -204,7 +204,7 @@
       photos: state.photos,
       containerWidth: Math.max(320, containerWidth),
       targetRowHeight: 280,
-      gap: 4,
+      gap: 1,
       isAppend: isAppend,
     });
   }

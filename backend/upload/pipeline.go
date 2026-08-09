@@ -7,6 +7,7 @@ import (
 
 	"image/jpeg"
 	_ "image/png"
+	_ "golang.org/x/image/webp"
 	"io"
 	"log"
 	"os"

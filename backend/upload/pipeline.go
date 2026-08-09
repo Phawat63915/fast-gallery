@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -75,6 +76,26 @@ func (p *Pipeline) Enqueue(job UploadJob) {
 	p.jobChan <- job
 }
 
+func parseAVIFDimensions(r io.ReadSeeker) (int, int, error) {
+	buf := make([]byte, 16384)
+	n, err := r.Read(buf)
+	if err != nil && err != io.EOF {
+		return 0, 0, err
+	}
+	r.Seek(0, io.SeekStart)
+
+	for i := 0; i < n-16; i++ {
+		if buf[i] == 'i' && buf[i+1] == 's' && buf[i+2] == 'p' && buf[i+3] == 'e' {
+			w := int(uint32(buf[i+8])<<24 | uint32(buf[i+9])<<16 | uint32(buf[i+10])<<8 | uint32(buf[i+11]))
+			h := int(uint32(buf[i+12])<<24 | uint32(buf[i+13])<<16 | uint32(buf[i+14])<<8 | uint32(buf[i+15]))
+			if w > 0 && w < 32000 && h > 0 && h < 32000 {
+				return w, h, nil
+			}
+		}
+	}
+	return 0, 0, fmt.Errorf("ispe box not found in AVIF header")
+}
+
 func (p *Pipeline) processJob(job UploadJob) {
 	file, err := os.Open(job.OriginalPath)
 	if err != nil {
@@ -83,15 +104,33 @@ func (p *Pipeline) processJob(job UploadJob) {
 	}
 	defer file.Close()
 
-	cfg, _, err := image.DecodeConfig(file)
 	width := 1920
 	height := 1080
 	aspectRatio := 1.777
 
-	if err == nil && cfg.Width > 0 && cfg.Height > 0 {
-		width = cfg.Width
-		height = cfg.Height
-		aspectRatio = float64(width) / float64(height)
+	ext := filepath.Ext(job.OriginalPath)
+	if len(ext) > 0 && ext[0] == '.' {
+		ext = ext[1:]
+	}
+	extLower := filepath.Ext(job.OriginalPath)
+	if len(extLower) > 0 {
+		extLower = extLower[1:]
+	}
+	extLower = filepath.Ext(job.OriginalPath)
+
+	if filepath.Ext(job.OriginalPath) == ".avif" || filepath.Ext(job.OriginalPath) == ".AVIF" {
+		if w, h, err := parseAVIFDimensions(file); err == nil && w > 0 && h > 0 {
+			width = w
+			height = h
+			aspectRatio = float64(width) / float64(height)
+		}
+	} else {
+		cfg, _, err := image.DecodeConfig(file)
+		if err == nil && cfg.Width > 0 && cfg.Height > 0 {
+			width = cfg.Width
+			height = cfg.Height
+			aspectRatio = float64(width) / float64(height)
+		}
 	}
 
 	filename := filepath.Base(job.OriginalPath)
@@ -127,6 +166,15 @@ func (p *Pipeline) processJob(job UploadJob) {
 }
 
 func CreateResizedThumbnail(srcPath string, dstPath string, maxDim int, quality int) error {
+	ext := filepath.Ext(srcPath)
+	if ext == ".avif" || ext == ".AVIF" {
+		// Use ffmpeg to resize AVIF thumbnail fast
+		cmd := exec.Command("ffmpeg", "-y", "-i", srcPath, "-vf", fmt.Sprintf("scale=%d:-1", maxDim), dstPath)
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+	}
+
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return err

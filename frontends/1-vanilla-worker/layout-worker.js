@@ -52,7 +52,7 @@ self.onmessage = function (e) {
     const projectedHeight = availableWidth / currentAspectRatioSum;
 
     if (projectedHeight <= targetH || i === photos.length - 1) {
-      let rowHeight = Math.max(140, Math.min(300, projectedHeight));
+      let rowHeight = Math.max(120, Math.min(230, projectedHeight));
       if (i === photos.length - 1 && projectedHeight > targetH * 1.35) {
         rowHeight = targetH;
       }

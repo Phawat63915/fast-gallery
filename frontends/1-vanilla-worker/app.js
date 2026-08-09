@@ -203,7 +203,7 @@
     layoutWorker.postMessage({
       photos: state.photos,
       containerWidth: Math.max(320, containerWidth),
-      targetRowHeight: 280,
+      targetRowHeight: 180,
       gap: 1,
       isAppend: isAppend,
     });
@@ -253,6 +253,9 @@
 
     ctxStage.fillStyle = '#0b0f19';
     ctxStage.fillRect(0, 0, canvasW, canvasH);
+
+    ctxStage.imageSmoothingEnabled = true;
+    ctxStage.imageSmoothingQuality = 'high';
 
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = rect.height;

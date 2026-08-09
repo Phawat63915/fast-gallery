@@ -766,6 +766,7 @@
   }
 
   let rAFPending = false;
+  let resizePending = false;
 
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
@@ -803,9 +804,15 @@
     }
 
     window.addEventListener('resize', () => {
-      resizeStageCanvas();
-      computeLayout();
-    });
+      if (!resizePending) {
+        resizePending = true;
+        requestAnimationFrame(() => {
+          resizeStageCanvas();
+          computeLayout();
+          resizePending = false;
+        });
+      }
+    }, { passive: true });
 
     lightboxModal.addEventListener('wheel', (e) => {
       if (state.zoomScale > 1.0 || e.ctrlKey) {

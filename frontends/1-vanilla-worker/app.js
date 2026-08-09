@@ -199,12 +199,12 @@
   }
 
   function computeLayout(isAppend = false) {
-    const containerWidth = scrollContainer.clientWidth - 32;
+    const containerWidth = scrollContainer.clientWidth;
     layoutWorker.postMessage({
       photos: state.photos,
       containerWidth: Math.max(320, containerWidth),
-      targetRowHeight: 220,
-      gap: 3,
+      targetRowHeight: 280,
+      gap: 4,
       isAppend: isAppend,
     });
   }

@@ -16,6 +16,11 @@
     lastWheelTime: 0,
     lastDirection: 1,
     
+    lastScrollTop: 0,
+    lastScrollTime: Date.now(),
+    scrollVelocity: 0,
+    scrollDirection: 1,
+    
     fps: 60,
     frameCount: 0,
     lastFpsTime: performance.now(),
@@ -160,6 +165,7 @@
       img.onload = null;
       img.onerror = null;
       img.dataset.src = '';
+      img.src = '';
     }
     if (state.nodePool.length < 250) {
       state.nodePool.push(card);
@@ -210,12 +216,26 @@
         const thumbUrl = getThumbUrl(photo);
         if (img && img.src !== thumbUrl) {
           img.src = thumbUrl;
+          if (img.decode) img.decode().catch(() => {});
         }
       } else {
         const card = acquirePhotoCard(item);
         card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         virtualGrid.appendChild(card);
         state.activeNodes.set(photo.id, card);
+        const img = card.querySelector('img');
+        if (img && img.decode) img.decode().catch(() => {});
+      }
+    }
+
+    // Off-thread pre-decode upcoming photos in GPU VRAM
+    const maxRow = Math.min(state.layoutRows.length, startRowIdx + 20);
+    for (let r = startRowIdx; r < maxRow; r++) {
+      const row = state.layoutRows[r];
+      if (row && row.items) {
+        for (let i = 0; i < row.items.length; i++) {
+          predecodeUpcomingPhoto(row.items[i].photo);
+        }
       }
     }
 
@@ -223,6 +243,26 @@
 
     if (scrollTop + viewportHeight >= state.totalGridHeight - 800 && !state.isLoading && state.hasMore) {
       fetchPhotos(true);
+    }
+  }
+
+  function predecodeUpcomingPhoto(photo) {
+    if (!photo) return;
+    const url = getThumbUrl(photo);
+    if (!url || state.preloadedCache.has(url)) return;
+
+    if (state.preloadedOrder.length >= MAX_PRELOAD_CACHE) {
+      const oldest = state.preloadedOrder.shift();
+      state.preloadedCache.delete(oldest);
+    }
+    state.preloadedCache.add(url);
+    state.preloadedOrder.push(url);
+
+    const offscreenImg = new Image();
+    offscreenImg.decoding = 'async';
+    offscreenImg.src = url;
+    if (offscreenImg.decode) {
+      offscreenImg.decode().catch(() => {});
     }
   }
 

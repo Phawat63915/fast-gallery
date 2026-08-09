@@ -138,6 +138,7 @@
       img.onload = null;
       img.onerror = null;
       img.dataset.src = '';
+      img.src = '';
     }
     if (state.nodePool.length < 250) {
       state.nodePool.push(card);
@@ -155,9 +156,34 @@
       fetchPhotos(true);
     }
 
-    const buffer = 2600;
-    const startY = Math.max(0, scrollTop - buffer);
-    const endY = scrollTop + viewportHeight + buffer;
+    const now = Date.now();
+    const dt = Math.max(1, now - (state.lastScrollTime || now));
+    const dy = scrollTop - (state.lastScrollTop || 0);
+    const velocity = Math.abs(dy / dt);
+
+    if (dy !== 0) {
+      state.scrollDirection = dy > 0 ? 1 : -1;
+    }
+    state.scrollVelocity = velocity;
+    state.lastScrollTop = scrollTop;
+    state.lastScrollTime = now;
+
+    let topBuffer = 2600;
+    let bottomBuffer = 2600;
+
+    if (velocity > 0.5) {
+      const extraBuffer = Math.min(6400, Math.floor(velocity * 2000));
+      if (state.scrollDirection > 0) {
+        bottomBuffer += extraBuffer;
+        topBuffer = 1500;
+      } else {
+        topBuffer += extraBuffer;
+        bottomBuffer = 1500;
+      }
+    }
+
+    const startY = Math.max(0, scrollTop - topBuffer);
+    const endY = scrollTop + viewportHeight + bottomBuffer;
 
     const visibleItems = [];
     for (let r = 0; r < state.layoutRows.length; r++) {
@@ -188,12 +214,26 @@
         const thumbUrl = getThumbUrl(photo);
         if (img && img.src !== thumbUrl) {
           img.src = thumbUrl;
+          if (img.decode) img.decode().catch(() => {});
         }
       } else {
         const card = acquirePhotoCard(item);
         card.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         virtualGrid.appendChild(card);
         state.activeNodes.set(photo.id, card);
+        const img = card.querySelector('img');
+        if (img && img.decode) img.decode().catch(() => {});
+      }
+    }
+
+    const startRowIdx = Math.max(0, Math.floor(startY / 250));
+    const maxRow = Math.min(state.layoutRows.length, startRowIdx + 20);
+    for (let r = startRowIdx; r < maxRow; r++) {
+      const row = state.layoutRows[r];
+      if (row && row.items) {
+        for (let i = 0; i < row.items.length; i++) {
+          predecodeUpcomingPhoto(row.items[i].photo);
+        }
       }
     }
 

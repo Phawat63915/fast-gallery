@@ -747,7 +747,7 @@
       const renderPass = commandEncoder.beginRenderPass({
         colorAttachments: [{
           view: textureView,
-          clearValue: { r: 0.043, g: 0.059, b: 0.098, a: 1.0 },
+          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
           loadOp: 'clear',
           storeOp: 'store',
         }],
@@ -878,7 +878,7 @@
     // WebGL Hardware Mipmap Render Path
     if (gl && webglProgram) {
       gl.viewport(0, 0, canvasW, canvasH);
-      gl.clearColor(0.043, 0.059, 0.098, 1.0);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       gl.useProgram(webglProgram);

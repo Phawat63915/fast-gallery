@@ -584,7 +584,9 @@
     const webgpuSuccess = await initWebGPU();
     if (!webgpuSuccess) {
       initStageRenderer();
-      if (statEngine) statEngine.textContent = 'WebGL 2.0 (GLSL)';
+      if (statEngine && !statEngine.textContent.startsWith('WebGL 2.0')) {
+        statEngine.textContent = 'WebGL 2.0 (GLSL)';
+      }
     }
   }
 

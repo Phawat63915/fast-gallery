@@ -596,9 +596,13 @@
   let layoutWorker = new Worker('layout-worker.js');
 
   layoutWorker.onmessage = function (e) {
-    const { rows, totalHeight } = e.data;
+    const { rows, totalHeight, binaryBuffer } = e.data;
     state.layoutRows = rows;
     state.totalGridHeight = totalHeight;
+
+    if (binaryBuffer) {
+      state.binaryLayoutData = new Float32Array(binaryBuffer);
+    }
 
     if (scrollSpacer) {
       scrollSpacer.style.height = `${totalHeight}px`;

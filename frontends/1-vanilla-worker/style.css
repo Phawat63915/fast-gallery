@@ -42,6 +42,7 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   overflow-y: auto;
   position: relative;
   padding: 0;
+  cursor: pointer;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -53,8 +54,7 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   height: 100%;
   display: block;
   z-index: 1;
-  pointer-events: auto;
-  cursor: pointer;
+  pointer-events: none;
   will-change: transform;
   transform: translateZ(0);
   backface-visibility: hidden;

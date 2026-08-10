@@ -44,28 +44,27 @@ self.onmessage = function (e) {
 
   for (let i = startIndex; i < photos.length; i++) {
     const photo = photos[i];
-    const ar = photo.aspect_ratio || 1.5;
+    const ar = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
     currentRow.push(photo);
     currentAspectRatioSum += ar;
 
     const availableWidth = containerWidth - (currentRow.length - 1) * gridGap;
     const projectedHeight = availableWidth / currentAspectRatioSum;
+    const isLastItem = (i === photos.length - 1);
 
-    if (projectedHeight <= targetH || i === photos.length - 1) {
-      let rowHeight = Math.max(120, Math.min(230, projectedHeight));
-      if (i === photos.length - 1 && projectedHeight > targetH * 1.35) {
-        rowHeight = targetH;
-      }
+    if (projectedHeight <= targetH || isLastItem) {
+      const isLastRowUnfilled = isLastItem && (projectedHeight > targetH * 1.3);
+      const rowHeight = isLastRowUnfilled ? targetH : Math.max(90, Math.min(320, projectedHeight));
 
       let currentX = 0;
       const layoutItems = [];
 
       for (let j = 0; j < currentRow.length; j++) {
         const item = currentRow[j];
-        const itemAR = item.aspect_ratio || 1.5;
+        const itemAR = item.aspect_ratio || (item.width && item.height ? item.width / item.height : 1.5);
         let itemWidth = Math.floor(rowHeight * itemAR);
 
-        if (j === currentRow.length - 1 && projectedHeight <= targetH) {
+        if (j === currentRow.length - 1 && !isLastRowUnfilled) {
           const usedWidth = layoutItems.reduce((acc, it) => acc + it.width + gridGap, 0);
           const remaining = containerWidth - usedWidth;
           if (remaining > 0) itemWidth = remaining;
@@ -82,7 +81,7 @@ self.onmessage = function (e) {
         currentX += itemWidth + gridGap;
       }
 
-      rows.push({ y: currentY, height: rowHeight, items: layoutItems });
+      rows.push({ y: currentY, height: Math.floor(rowHeight), items: layoutItems });
       currentY += Math.floor(rowHeight) + gridGap;
       currentRow = [];
       currentAspectRatioSum = 0;

@@ -517,8 +517,8 @@
           return res.blob();
         })
         .then(blob => {
-          const targetW = reqW ? Math.max(160, Math.min(reqW, 600)) : 300;
-          const opts = { resizeWidth: targetW, resizeQuality: 'medium' };
+          const targetW = reqW ? Math.max(200, Math.min(reqW, 800)) : 360;
+          const opts = { resizeWidth: targetW, resizeQuality: 'high' };
           return createImageBitmap(blob, opts);
         })
         .then(bitmap => {
@@ -979,7 +979,7 @@
 
   function getThumbUrl(photo, reqW = 0) {
     if (!photo) return '';
-    if (reqW > 380 || window.devicePixelRatio > 1.25) {
+    if (reqW > 320 || window.devicePixelRatio > 1.2) {
       return getOriginalUrl(photo);
     }
     if (photo.filename) {

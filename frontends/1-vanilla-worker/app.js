@@ -41,7 +41,7 @@
   const MAX_PRELOAD_CACHE = 50;
 
   const scrollContainer = document.getElementById('scroll-container');
-  const galleryStageCanvas = document.getElementById('gallery-stage-canvas');
+  let galleryStageCanvas = document.getElementById('gallery-stage-canvas');
   const scrollSpacer = document.getElementById('scroll-spacer');
   
   const statEngine = document.getElementById('stat-engine');

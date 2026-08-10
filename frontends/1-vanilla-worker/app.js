@@ -991,22 +991,8 @@
     }
   }
 
-  function getThumbUrl(photo, reqW = 0) {
-    if (!photo) return '';
-    if (reqW > 320 || window.devicePixelRatio > 1.2) {
-      return getOriginalUrl(photo);
-    }
-    if (photo._thumbUrl) return photo._thumbUrl;
-
-    let res = '';
-    if (photo.filename) {
-      res = photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
-    } else {
-      const fallback = photo.micro_url || photo.original_url || '';
-      res = fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
-    }
-    photo._thumbUrl = res;
-    return res;
+  function getThumbUrl(photo) {
+    return getOriginalUrl(photo);
   }
 
   function getOriginalUrl(photo) {

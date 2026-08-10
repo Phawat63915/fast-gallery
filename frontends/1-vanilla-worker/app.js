@@ -54,7 +54,8 @@
   let gpuPipeline = null;
   let gpuSampler = null;
   let isWebGPUMode = false;
-  const webgpuBindGroupMap = new Map();
+  let webgpuBindGroupMap = new Map();
+  const uniformScratchBuffer = new Float32Array(12);
 
   // WebGL Engine State (GLSL Fallback)
   let gl = null;
@@ -554,12 +555,12 @@
 
   function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
     if (!url) return null;
-    if (imageTextureMap.has(url)) {
-      const tex = imageTextureMap.get(url);
+    const tex = imageTextureMap.get(url);
+    if (tex !== undefined) {
       if (tex) {
-        const idx = textureLRU.indexOf(url);
-        if (idx >= 0) {
-          textureLRU.splice(idx, 1);
+        if (textureLRU[textureLRU.length - 1] !== url) {
+          const idx = textureLRU.indexOf(url);
+          if (idx >= 0) textureLRU.splice(idx, 1);
           textureLRU.push(url);
         }
       }
@@ -780,17 +781,20 @@
             }
           }
 
-          const uniformData = new Float32Array([
-            x, targetY, width, height,
-            vpWidth, vpHeight,
-            uvScaleX, uvScaleY,
-            uvOffsetX, uvOffsetY,
-            0, 0
-          ]);
+          uniformScratchBuffer[0] = x;
+          uniformScratchBuffer[1] = targetY;
+          uniformScratchBuffer[2] = width;
+          uniformScratchBuffer[3] = height;
+          uniformScratchBuffer[4] = vpWidth;
+          uniformScratchBuffer[5] = vpHeight;
+          uniformScratchBuffer[6] = uvScaleX;
+          uniformScratchBuffer[7] = uvScaleY;
+          uniformScratchBuffer[8] = uvOffsetX;
+          uniformScratchBuffer[9] = uvOffsetY;
 
           if (!itemObj) {
             const uniformBuffer = gpuDevice.createBuffer({
-              size: uniformData.byteLength,
+              size: uniformScratchBuffer.byteLength,
               usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             });
             const bindGroup = gpuDevice.createBindGroup({
@@ -805,7 +809,7 @@
             webgpuBindGroupMap.set(thumbUrl, itemObj);
           }
 
-          gpuDevice.queue.writeBuffer(itemObj.uniformBuffer, 0, uniformData);
+          gpuDevice.queue.writeBuffer(itemObj.uniformBuffer, 0, uniformScratchBuffer);
 
           renderPass.setBindGroup(0, itemObj.bindGroup);
           renderPass.draw(6);

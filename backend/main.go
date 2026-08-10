@@ -25,18 +25,13 @@ import (
 )
 
 var (
-	database          *db.DB
-	pipeline          *upload.Pipeline
-	startTime         time.Time
-	disableThumbnails bool
+	database  *db.DB
+	pipeline  *upload.Pipeline
+	startTime time.Time
 
 	// Sub-millisecond JSON Response Cache for /api/photos
 	apiCacheMutex sync.RWMutex
 	apiCache      = make(map[string][]byte)
-
-	// In-memory On-The-Fly Thumbnail Cache when DISABLE_THUMBNAILS=true
-	thumbCacheMutex sync.RWMutex
-	thumbCache      = make(map[string][]byte)
 )
 
 func main() {
@@ -406,66 +401,4 @@ func loadDotEnv() {
 		}
 		break
 	}
-}
-
-func getOrGenerateOnTheFlyThumb(originalFilePath string) ([]byte, error) {
-	thumbCacheMutex.RLock()
-	cached, exists := thumbCache[originalFilePath]
-	thumbCacheMutex.RUnlock()
-
-	if exists {
-		return cached, nil
-	}
-
-	srcFile, err := os.Open(originalFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer srcFile.Close()
-
-	srcImg, _, err := image.Decode(srcFile)
-	if err != nil {
-		return nil, err
-	}
-
-	bounds := srcImg.Bounds()
-	origW := bounds.Dx()
-	origH := bounds.Dy()
-	if origW <= 0 || origH <= 0 {
-		return nil, fmt.Errorf("invalid image bounds")
-	}
-
-	maxDim := 400
-	targetW := maxDim
-	targetH := maxDim
-	if origW > origH {
-		targetH = int(float64(origH) * float64(maxDim) / float64(origW))
-	} else {
-		targetW = int(float64(origW) * float64(maxDim) / float64(origH))
-	}
-	if targetW <= 0 {
-		targetW = 1
-	}
-	if targetH <= 0 {
-		targetH = 1
-	}
-
-	dstImg := image.NewRGBA(image.Rect(0, 0, targetW, targetH))
-	xdraw.BiLinear.Scale(dstImg, dstImg.Bounds(), srcImg, bounds, xdraw.Over, nil)
-
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, dstImg, &jpeg.Options{Quality: 80}); err != nil {
-		return nil, err
-	}
-
-	resBytes := buf.Bytes()
-
-	thumbCacheMutex.Lock()
-	if len(thumbCache) > 5000 {
-		thumbCache = make(map[string][]byte)
-	}
-	thumbCache[originalFilePath] = resBytes
-	thumbCacheMutex.Unlock()
-
-	return resBytes, nil
 }

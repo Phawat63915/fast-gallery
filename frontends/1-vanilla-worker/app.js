@@ -563,7 +563,7 @@
 
         if (boxAspect > photoAspect) {
           uvScaleY = photoAspect / boxAspect;
-          uvOffsetY = (1.0 - uvScaleY) * 0.5;
+          uvOffsetY = (1.0 - uvScaleY) * 0.15; // Preserve top details (heads, faces, hair, titles)
         } else if (boxAspect < photoAspect) {
           uvScaleX = boxAspect / photoAspect;
           uvOffsetX = (1.0 - uvScaleX) * 0.5;

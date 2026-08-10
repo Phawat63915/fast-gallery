@@ -56,25 +56,36 @@ self.onmessage = function (e) {
       const isLastRowUnfilled = isLastItem && (projectedHeight > targetH * 1.3);
       const rowHeight = isLastRowUnfilled ? targetH : Math.max(90, Math.min(320, projectedHeight));
 
+      const rawWidths = currentRow.map(item => {
+        const itemAR = item.aspect_ratio || (item.width && item.height ? item.width / item.height : 1.5);
+        return Math.floor(rowHeight * itemAR);
+      });
+
+      const totalRawWidth = rawWidths.reduce((a, b) => a + b, 0);
+      const targetAvailableWidth = containerWidth - (currentRow.length - 1) * gridGap;
+      const diff = !isLastRowUnfilled ? (targetAvailableWidth - totalRawWidth) : 0;
+
       let currentX = 0;
       const layoutItems = [];
 
       for (let j = 0; j < currentRow.length; j++) {
         const item = currentRow[j];
-        const itemAR = item.aspect_ratio || (item.width && item.height ? item.width / item.height : 1.5);
-        let itemWidth = Math.floor(rowHeight * itemAR);
-
-        if (j === currentRow.length - 1 && !isLastRowUnfilled) {
-          const usedWidth = layoutItems.reduce((acc, it) => acc + it.width + gridGap, 0);
-          const remaining = containerWidth - usedWidth;
-          if (remaining > 0) itemWidth = remaining;
+        let itemWidth = rawWidths[j];
+        if (diff !== 0 && totalRawWidth > 0) {
+          if (j === currentRow.length - 1) {
+            const usedWidth = layoutItems.reduce((acc, it) => acc + it.width + gridGap, 0);
+            itemWidth = containerWidth - usedWidth;
+          } else {
+            const extra = Math.floor(diff * (rawWidths[j] / totalRawWidth));
+            itemWidth += extra;
+          }
         }
 
         layoutItems.push({
           photo: item,
           x: currentX,
           y: currentY,
-          width: itemWidth,
+          width: Math.max(10, itemWidth),
           height: Math.floor(rowHeight),
         });
 

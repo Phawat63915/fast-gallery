@@ -71,6 +71,7 @@ body { background-color: var(--bg-dark); color: var(--text-main); font-family: v
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 15%;
   opacity: 1;
   transform: translateZ(0);
   backface-visibility: hidden;

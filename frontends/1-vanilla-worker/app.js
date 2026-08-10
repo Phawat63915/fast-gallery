@@ -843,8 +843,14 @@
       fetchPhotos(true);
     }
 
-    const startY = Math.max(0, scrollTop - 400);
-    const endY = scrollTop + viewportHeight + 400;
+    // Technique 4: Predictive Velocity Vector Prefetching (0ms Zero Black Box Delay)
+    const vel = state.scrollVelocity || 0;
+    const dir = state.scrollDirection || 1;
+    const baseBuffer = 400;
+    const predictiveBuffer = Math.min(2800, Math.max(0, Math.floor(vel * 900)));
+
+    const startY = Math.max(0, scrollTop - (dir < 0 ? predictiveBuffer + baseBuffer : baseBuffer));
+    const endY = scrollTop + viewportHeight + (dir > 0 ? predictiveBuffer + baseBuffer : baseBuffer);
 
     const visibleItems = [];
     const visibleUrlsSet = new Set();

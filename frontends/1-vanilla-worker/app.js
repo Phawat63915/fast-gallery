@@ -106,7 +106,10 @@
 
     @fragment
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-      return textureSample(myTexture, mySampler, in.uv);
+      var texColor = textureSample(myTexture, mySampler, in.uv);
+      let lum = dot(texColor.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+      let vividRgb = mix(vec3<f32>(lum), texColor.rgb, 1.08);
+      return vec4<f32>(vividRgb, texColor.a);
     }
   `;
 
@@ -155,6 +158,8 @@
       gpuSampler = gpuDevice.createSampler({
         magFilter: 'linear',
         minFilter: 'linear',
+        mipmapFilter: 'linear',
+        maxAnisotropy: 16,
       });
 
       const shaderModule = gpuDevice.createShaderModule({ code: wgslShaderCode });
@@ -961,8 +966,11 @@
     }
   }
 
-  function getThumbUrl(photo) {
+  function getThumbUrl(photo, reqW = 0) {
     if (!photo) return '';
+    if (reqW > 380 || window.devicePixelRatio > 1.25) {
+      return getOriginalUrl(photo);
+    }
     if (photo.filename) {
       return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
     }

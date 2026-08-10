@@ -17,7 +17,7 @@ self.onmessage = function (e) {
 
   for (let i = 0; i < photos.length; i++) {
     const photo = photos[i];
-    const ar = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+    const ar = photo.aspect_ratio || 1.5;
     currentRow.push({ photo: photo, index: i });
     currentAspectRatioSum += ar;
 
@@ -36,7 +36,7 @@ self.onmessage = function (e) {
       for (let j = 0; j < currentRow.length; j++) {
         const item = currentRow[j].photo;
         const photoIdx = currentRow[j].index;
-        const itemAR = item.aspect_ratio || (item.width && item.height ? item.width / item.height : 1.5);
+        const itemAR = item.aspect_ratio || 1.5;
         let itemWidth = Math.floor(rowHeight * itemAR);
 
         if (j === currentRow.length - 1 && projectedHeight <= rowHeightTarget) {

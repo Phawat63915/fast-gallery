@@ -770,7 +770,7 @@
         if (texObj && texObj.gpuTex) {
           let itemObj = webgpuBindGroupMap.get(thumbUrl);
 
-          const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+          const photoAspect = photo.aspect_ratio || 1.5;
           const boxAspect = width / height;
           let uvScaleX = 1.0, uvScaleY = 1.0;
           let uvOffsetX = 0.0, uvOffsetY = 0.0;
@@ -1116,7 +1116,7 @@
     if (exifCamera) exifCamera.textContent = `${photo.camera_make || 'Sony'} ${photo.camera_model || 'A7 IV'}`.trim();
     if (exifFocal) exifFocal.textContent = photo.focal_length || '35mm';
     if (exifIso) exifIso.textContent = photo.iso ? `ISO ${photo.iso}` : 'ISO 100';
-    if (exifRes) exifRes.textContent = `${photo.width || 1920} × ${photo.height || 1080}`;;
+    if (exifRes) exifRes.textContent = photo.aspect_ratio ? `Ratio: ${photo.aspect_ratio.toFixed(2)}` : 'Standard HD';
 
     lightboxModal.classList.remove('hidden');
 

@@ -1,5 +1,5 @@
 // FastGallery Multi-Engine Layout Worker (Masonry Pinterest vs Uniform Grid Google Photos)
-// Features: Stable 2-6 Column Grid, Clamped Aspect Ratios, Zero Lag
+// Features: Dynamic Responsive Columns (Target 240px), Zoom-Responsive Scaling, Zero Lag
 
 let cachedState = {
   photosLength: 0,
@@ -21,17 +21,9 @@ self.onmessage = function (e) {
   const gridGap = gap !== undefined ? gap : 2;
   const layoutMode = mode || 'masonry';
 
-  // Stable Responsive Column Grid (Max 6 columns on large desktops, 5 on laptops, 2 on mobile)
-  let cols = 2;
-  if (containerWidth > 1500) {
-    cols = 6;
-  } else if (containerWidth > 1150) {
-    cols = 5;
-  } else if (containerWidth > 800) {
-    cols = 4;
-  } else if (containerWidth > 500) {
-    cols = 3;
-  }
+  // Dynamic Responsive Column Calculation (Target ~240px per column - scales dynamically when zooming)
+  const targetColWidth = 240;
+  let cols = Math.max(2, Math.floor((containerWidth + gridGap) / (targetColWidth + gridGap)));
 
   const totalGaps = (cols - 1) * gridGap;
   const availableWidth = containerWidth - totalGaps;
@@ -55,9 +47,9 @@ self.onmessage = function (e) {
       const minCol = colHeights.indexOf(Math.min(...colHeights));
       const itemW = baseColWidth + (minCol < remainderPixels ? 1 : 0);
       
-      // Calculate balanced item height (capped at 380px max)
-      const maxH = Math.min(380, Math.floor(itemW * 1.35));
-      const minH = Math.max(100, Math.floor(itemW * 0.5));
+      // Calculate balanced item height (capped at 420px max)
+      const maxH = Math.min(420, Math.floor(itemW * 1.35));
+      const minH = Math.max(80, Math.floor(itemW * 0.5));
       const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / ar)));
 
       let currentX = 0;

@@ -1179,7 +1179,7 @@
       galleryStageCanvas.addEventListener('click', handleCanvasClick);
     }
 
-    window.addEventListener('resize', () => {
+    const handleWindowResize = () => {
       if (!resizePending) {
         resizePending = true;
         requestAnimationFrame(() => {
@@ -1188,7 +1188,12 @@
           resizePending = false;
         });
       }
-    }, { passive: true });
+    };
+
+    window.addEventListener('resize', handleWindowResize, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleWindowResize, { passive: true });
+    }
 
     lightboxModal.addEventListener('wheel', (e) => {
       if (state.zoomScale > 1.0 || e.ctrlKey) {

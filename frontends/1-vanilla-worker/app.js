@@ -14,7 +14,6 @@
     
     currentPhotoIndex: -1,
     lastWheelTime: 0,
-    lastDirection: 1,
     
     lastScrollTop: 0,
     lastScrollTime: Date.now(),
@@ -35,8 +34,6 @@
     isDragging: false,
     dragStartX: 0,
     dragStartY: 0,
-    lastZoomX: 0,
-    lastZoomY: 0,
   };
 
   const API_BASE = '';
@@ -418,11 +415,20 @@
   }
 
   function computeLayout(isAppend = false) {
-    const containerWidth = scrollContainer.clientWidth;
+    const containerWidth = scrollContainer.clientWidth || window.innerWidth;
+    let targetH = 180;
+    if (containerWidth <= 480) {
+      targetH = 120; // Mobile Portrait: 3-4 photos per row
+    } else if (containerWidth <= 768) {
+      targetH = 150; // Mobile Landscape / Small Tablet
+    } else if (containerWidth <= 1024) {
+      targetH = 165; // Tablet
+    }
+
     layoutWorker.postMessage({
       photos: state.photos,
-      containerWidth: Math.max(320, containerWidth),
-      targetRowHeight: 180,
+      containerWidth: Math.max(280, containerWidth),
+      targetRowHeight: targetH,
       gap: 1,
       isAppend: isAppend,
     });
@@ -444,26 +450,8 @@
     return result;
   }
 
-  function drawThumbhashQuad(ctx, photo, x, y, width, height) {
-    const hashStr = photo.thumbhash || photo.id || '';
-    let hashNum = 0;
-    for (let i = 0; i < hashStr.length; i++) {
-      hashNum = (hashNum << 5) - hashNum + hashStr.charCodeAt(i);
-    }
-    const c1 = `hsl(${Math.abs(hashNum) % 360}, 55%, 35%)`;
-    const c2 = `hsl(${Math.abs(hashNum * 7) % 360}, 45%, 20%)`;
-
-    const grad = ctx.createLinearGradient(x, y, x + width, y + height);
-    grad.addColorStop(0, c1);
-    grad.addColorStop(1, c2);
-    ctx.fillStyle = grad;
-    ctx.fillRect(x, y, width, height);
-  }
-
-  let isScrolling = false;
-  let scrollStopTimer = null;
-
   function getThumbhashNormalizedColor(photo) {
+    if (photo._rgba) return photo._rgba;
     const hashStr = photo.thumbhash || photo.id || '';
     let hashNum = 0;
     for (let i = 0; i < hashStr.length; i++) {
@@ -481,8 +469,25 @@
     else if (h < 5) { r = x; b = c; }
     else { r = c; b = x; }
     const m = 0.15;
-    return [r + m, g + m, b + m, 1.0];
+    photo._rgba = [r + m, g + m, b + m, 1.0];
+    photo._hue = Math.abs(hashNum) % 360;
+    return photo._rgba;
   }
+
+  function drawThumbhashQuad(ctx, photo, x, y, width, height) {
+    const rgba = getThumbhashNormalizedColor(photo);
+    const c1 = `hsl(${photo._hue}, 55%, 35%)`;
+    const c2 = `hsl(${(photo._hue * 7) % 360}, 45%, 20%)`;
+
+    const grad = ctx.createLinearGradient(x, y, x + width, y + height);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  let isScrolling = false;
+  let scrollStopTimer = null;
 
   function renderVirtualGrid() {
     if ((!gl && !ctxStage) || !state.layoutRows || state.layoutRows.length === 0) return;
@@ -925,6 +930,28 @@
         }
       }
     });
+
+    // Mobile Touch Gesture Handler for Lightbox
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    lightboxModal.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    lightboxModal.addEventListener('touchend', (e) => {
+      if (state.zoomScale > 1.0) return;
+      if (e.changedTouches.length === 1) {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 40 && Math.abs(dy) < 90) {
+          navigateLightbox(dx < 0 ? 1 : -1);
+        }
+      }
+    }, { passive: true });
 
     const fileInput = document.getElementById('file-input');
     const dropZone = document.getElementById('drop-zone');

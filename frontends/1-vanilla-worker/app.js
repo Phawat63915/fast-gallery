@@ -44,12 +44,137 @@
   const galleryStageCanvas = document.getElementById('gallery-stage-canvas');
   const scrollSpacer = document.getElementById('scroll-spacer');
   
+  const statEngine = document.getElementById('stat-engine');
+
+  // WebGPU Engine State (WGSL - Next-Gen GPU Architecture)
+  let gpuAdapter = null;
+  let gpuDevice = null;
+  let gpuContext = null;
+  let gpuFormat = null;
+  let gpuPipeline = null;
+  let gpuSampler = null;
+  let isWebGPUMode = false;
+  const webgpuBindGroupMap = new Map();
+
+  // WebGL Engine State (GLSL Fallback)
   let gl = null;
   let ctxStage = null;
   let webglProgram = null;
   let webglLocations = {};
   let quadBuffer = null;
   let texCoordBuffer = null;
+
+  const wgslShaderCode = `
+    struct Uniforms {
+      rect: vec4<f32>,       // x, y, width, height
+      resolution: vec2<f32>, // viewport width, height
+      uv_scale: vec2<f32>,
+      uv_offset: vec2<f32>,
+    };
+
+    struct VertexOutput {
+      @builtin(position) position: vec4<f32>,
+      @location(0) uv: vec2<f32>,
+    };
+
+    @group(0) @binding(0) var mySampler: sampler;
+    @group(0) @binding(1) var myTexture: texture_2d<f32>;
+    @group(0) @binding(2) var<uniform> uniforms: Uniforms;
+
+    @vertex
+    fn vs_main(@builtin(vertex_index) VertexIndex: u32) -> VertexOutput {
+      var pos = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0),
+        vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0)
+      );
+      var texCoord = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0),
+        vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0)
+      );
+
+      var output: VertexOutput;
+      let p = pos[VertexIndex];
+      let pixelPos = p * uniforms.rect.zw + uniforms.rect.xy;
+      let zeroToOne = pixelPos / uniforms.resolution;
+      let clipSpace = zeroToOne * 2.0 - 1.0;
+
+      output.position = vec4<f32>(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+      output.uv = texCoord[VertexIndex] * uniforms.uv_scale + uniforms.uv_offset;
+      return output;
+    }
+
+    @fragment
+    fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+      return textureSample(myTexture, mySampler, in.uv);
+    }
+  `;
+
+  async function initWebGPU() {
+    if (!navigator.gpu) return false;
+    try {
+      gpuAdapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+      if (!gpuAdapter) return false;
+      gpuDevice = await gpuAdapter.requestDevice();
+      gpuContext = galleryStageCanvas.getContext('webgpu');
+      if (!gpuContext) return false;
+
+      gpuFormat = navigator.gpu.getPreferredCanvasFormat();
+      gpuContext.configure({
+        device: gpuDevice,
+        format: gpuFormat,
+        alphaMode: 'premultiplied',
+      });
+
+      gpuSampler = gpuDevice.createSampler({
+        magFilter: 'linear',
+        minFilter: 'linear',
+      });
+
+      const shaderModule = gpuDevice.createShaderModule({ code: wgslShaderCode });
+      gpuPipeline = gpuDevice.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+          module: shaderModule,
+          entryPoint: 'vs_main',
+        },
+        fragment: {
+          module: shaderModule,
+          entryPoint: 'fs_main',
+          targets: [{ format: gpuFormat }],
+        },
+        primitive: { topology: 'triangle-list' },
+      });
+
+      isWebGPUMode = true;
+      if (statEngine) statEngine.textContent = 'WebGPU (WGSL)';
+      console.log('⚡ WebGPU WGSL Engine initialized successfully!');
+      return true;
+    } catch (e) {
+      console.warn('WebGPU init failed, falling back to WebGL:', e);
+      return false;
+    }
+  }
+
+  function createWebGPUTexture(gpuDevice, bitmap) {
+    if (!gpuDevice || !bitmap) return null;
+    try {
+      const texture = gpuDevice.createTexture({
+        size: [bitmap.width, bitmap.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+      gpuDevice.queue.copyExternalImageToTexture(
+        { source: bitmap, flipY: false },
+        { texture: texture },
+        [bitmap.width, bitmap.height]
+      );
+
+      return texture;
+    } catch (e) {
+      return null;
+    }
+  }
 
   function initStageRenderer() {
     if (!galleryStageCanvas) return;
@@ -227,8 +352,13 @@
       const { url, bitmap } = item;
 
       if (!visibleUrlsSet || visibleUrlsSet.has(url)) {
-        const glTex = gl ? createGLTexture(gl, bitmap) : null;
-        imageTextureMap.set(url, { bmp: bitmap, glTex: glTex });
+        if (isWebGPUMode && gpuDevice) {
+          const gpuTex = createWebGPUTexture(gpuDevice, bitmap);
+          imageTextureMap.set(url, { bmp: bitmap, gpuTex: gpuTex });
+        } else {
+          const glTex = gl ? createGLTexture(gl, bitmap) : null;
+          imageTextureMap.set(url, { bmp: bitmap, glTex: glTex });
+        }
         textureLRU.push(url);
         if (visibleUrlsSet) evictOffscreenTextures(visibleUrlsSet);
         count++;
@@ -255,6 +385,10 @@
         textureLRU.splice(i, 1);
         const item = imageTextureMap.get(url);
         if (item) {
+          if (item.gpuTex) {
+            try { item.gpuTex.destroy(); } catch (e) {}
+            webgpuBindGroupMap.delete(url);
+          }
           if (item.glTex && gl) {
             try { gl.deleteTexture(item.glTex); } catch (e) {}
           }
@@ -404,9 +538,18 @@
     renderVirtualGrid();
   };
 
+  async function initEngine() {
+    const webgpuSuccess = await initWebGPU();
+    if (!webgpuSuccess) {
+      initStageRenderer();
+      if (statEngine) statEngine.textContent = 'WebGL 2.0 (GLSL)';
+    }
+  }
+
   async function init() {
     setupEventListeners();
     startFPSMonitor();
+    await initEngine();
     await fetchPhotos();
     await fetchServerStats();
   }
@@ -519,8 +662,93 @@
   let isScrolling = false;
   let scrollStopTimer = null;
 
+  function renderVirtualGridWebGPU(visibleItems, visibleUrlsSet, scrollTop, canvasW, canvasH, dpr) {
+    if (!gpuDevice || !gpuContext || !gpuPipeline) return;
+
+    try {
+      const commandEncoder = gpuDevice.createCommandEncoder();
+      const textureView = gpuContext.getCurrentTexture().createView();
+
+      const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+          view: textureView,
+          clearValue: { r: 0.043, g: 0.059, b: 0.098, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        }],
+      });
+
+      renderPass.setPipeline(gpuPipeline);
+
+      const vpWidth = canvasW / dpr;
+      const vpHeight = canvasH / dpr;
+
+      for (let item of visibleItems) {
+        const { photo, x, y, width, height } = item;
+        const targetY = y - scrollTop;
+        const thumbUrl = getThumbUrl(photo);
+
+        const reqW = Math.round(width * dpr);
+        const reqH = Math.round(height * dpr);
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+
+        if (texObj && texObj.gpuTex) {
+          let bindGroup = webgpuBindGroupMap.get(thumbUrl);
+          if (!bindGroup) {
+            const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+            const boxAspect = width / height;
+            let uvScaleX = 1.0, uvScaleY = 1.0;
+            let uvOffsetX = 0.0, uvOffsetY = 0.0;
+
+            if (Math.abs(boxAspect - photoAspect) > 0.04) {
+              if (boxAspect > photoAspect) {
+                uvScaleY = photoAspect / boxAspect;
+                uvOffsetY = (1.0 - uvScaleY) * 0.15;
+              } else {
+                uvScaleX = boxAspect / photoAspect;
+                uvOffsetX = (1.0 - uvScaleX) * 0.5;
+              }
+            }
+
+            const uniformData = new Float32Array([
+              x, targetY, width, height,
+              vpWidth, vpHeight,
+              uvScaleX, uvScaleY,
+              uvOffsetX, uvOffsetY,
+              0, 0
+            ]);
+
+            const uniformBuffer = gpuDevice.createBuffer({
+              size: uniformData.byteLength,
+              usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            });
+            gpuDevice.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+            bindGroup = gpuDevice.createBindGroup({
+              layout: gpuPipeline.getBindGroupLayout(0),
+              entries: [
+                { binding: 0, resource: gpuSampler },
+                { binding: 1, resource: texObj.gpuTex.createView() },
+                { binding: 2, resource: { buffer: uniformBuffer } },
+              ],
+            });
+            webgpuBindGroupMap.set(thumbUrl, bindGroup);
+          }
+
+          renderPass.setBindGroup(0, bindGroup);
+          renderPass.draw(6);
+        }
+      }
+
+      renderPass.end();
+      gpuDevice.queue.submit([commandEncoder.finish()]);
+    } catch (e) {
+      console.warn('WebGPU render error:', e);
+    }
+  }
+
   function renderVirtualGrid() {
-    if ((!gl && !ctxStage) || !state.layoutRows || state.layoutRows.length === 0) return;
+    if ((!isWebGPUMode && !gl && !ctxStage) || !state.layoutRows || state.layoutRows.length === 0) return;
 
     resizeStageCanvas();
 
@@ -555,6 +783,11 @@
 
     cleanupStaleFetches(visibleUrlsSet);
     processPendingUploads(visibleUrlsSet);
+
+    if (isWebGPUMode && gpuDevice && gpuPipeline) {
+      renderVirtualGridWebGPU(visibleItems, visibleUrlsSet, scrollTop, canvasW, canvasH, dpr);
+      return;
+    }
 
     // WebGL Hardware Mipmap Render Path
     if (gl && webglProgram) {

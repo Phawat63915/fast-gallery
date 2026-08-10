@@ -67,16 +67,22 @@
     isLoadingMore = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=500${nextCursor ? `&cursor=${nextCursor}` : ''}`;
+      const url = `${API_BASE}/api/photos?limit=1000${nextCursor ? `&cursor=${nextCursor}` : ''}`;
       const res = await fetch(url);
       const data = await res.json();
       const newPhotos = data.photos || [];
 
-      if (newPhotos.length < 500 || !data.next_cursor) {
+      if (newPhotos.length < 1000 || !data.next_cursor) {
         hasMorePhotos = false;
       }
       nextCursor = data.next_cursor || 0;
       photos = isAppend ? [...photos, ...newPhotos] : newPhotos;
+
+      if (hasMorePhotos) {
+        setTimeout(() => {
+          fetchPhotos(true);
+        }, 50);
+      }
     } catch (e) {
       console.error(e);
     } finally {

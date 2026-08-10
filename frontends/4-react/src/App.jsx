@@ -162,16 +162,22 @@ export default function App() {
     isLoadingMoreRef.current = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=500${nextCursorRef.current ? `&cursor=${nextCursorRef.current}` : ''}`;
+      const url = `${API_BASE}/api/photos?limit=1000${nextCursorRef.current ? `&cursor=${nextCursorRef.current}` : ''}`;
       const res = await fetch(url);
       const data = await res.json();
       const newPhotos = data.photos || [];
 
-      if (newPhotos.length < 500 || !data.next_cursor) {
+      if (newPhotos.length < 1000 || !data.next_cursor) {
         hasMorePhotosRef.current = false;
       }
       nextCursorRef.current = data.next_cursor || 0;
       setPhotos((prev) => (isAppend ? [...prev, ...newPhotos] : newPhotos));
+
+      if (hasMorePhotosRef.current) {
+        setTimeout(() => {
+          fetchPhotos(true);
+        }, 50);
+      }
     } catch (e) {
       console.error(e);
     } finally {

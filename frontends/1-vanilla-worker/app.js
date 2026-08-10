@@ -25,8 +25,6 @@
     frameCount: 0,
     lastFpsTime: performance.now(),
     
-    activeNodes: new Map(),
-    nodePool: [],
     preloadedCache: new Set(),
     preloadedOrder: [],
 
@@ -47,7 +45,115 @@
   const scrollContainer = document.getElementById('scroll-container');
   const galleryStageCanvas = document.getElementById('gallery-stage-canvas');
   const scrollSpacer = document.getElementById('scroll-spacer');
-  const ctxStage = galleryStageCanvas ? galleryStageCanvas.getContext('2d', { alpha: false }) : null;
+  
+  let gl = null;
+  let ctxStage = null;
+  let webglProgram = null;
+  let webglLocations = {};
+  let quadBuffer = null;
+  let texCoordBuffer = null;
+
+  function initStageRenderer() {
+    if (!galleryStageCanvas) return;
+    try {
+      gl = galleryStageCanvas.getContext('webgl2', { alpha: false, antialias: false, powerPreference: 'high-performance' }) ||
+           galleryStageCanvas.getContext('webgl', { alpha: false, antialias: false, powerPreference: 'high-performance' });
+    } catch (e) {}
+
+    if (gl) {
+      const vsSource = `
+        attribute vec2 a_position;
+        attribute vec2 a_texCoord;
+        uniform vec2 u_resolution;
+        uniform vec2 u_translation;
+        uniform vec2 u_scale;
+        varying vec2 v_texCoord;
+
+        void main() {
+          vec2 pixelPosition = a_position * u_scale + u_translation;
+          vec2 zeroToOne = pixelPosition / u_resolution;
+          vec2 zeroToTwo = zeroToOne * 2.0;
+          vec2 clipSpace = zeroToTwo - 1.0;
+          gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0.0, 1.0);
+          v_texCoord = a_texCoord;
+        }
+      `;
+
+      const fsSource = `
+        precision mediump float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_image;
+        uniform vec4 u_color;
+        uniform bool u_useTexture;
+        uniform float u_velocity;
+
+        void main() {
+          if (u_useTexture) {
+            vec4 texColor = texture2D(u_image, v_texCoord);
+            
+            // GPU Velocity Motion Blur Smoothing during fast scroll
+            if (u_velocity > 1.2) {
+              float blurOffset = min(0.006, u_velocity * 0.001);
+              vec4 b1 = texture2D(u_image, v_texCoord + vec2(0.0, blurOffset));
+              vec4 b2 = texture2D(u_image, v_texCoord - vec2(0.0, blurOffset));
+              texColor = (texColor * 0.5) + (b1 + b2) * 0.25;
+            }
+
+            // GPU Color Enhancement: +6% Vibrance for rich vivid colors
+            vec3 rgb = texColor.rgb;
+            float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+            rgb = mix(vec3(lum), rgb, 1.06);
+            gl_FragColor = vec4(rgb, texColor.a);
+          } else {
+            gl_FragColor = u_color;
+          }
+        }
+      `;
+
+      const vs = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vs, vsSource);
+      gl.compileShader(vs);
+
+      const fs = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fs, fsSource);
+      gl.compileShader(fs);
+
+      webglProgram = gl.createProgram();
+      gl.attachShader(webglProgram, vs);
+      gl.attachShader(webglProgram, fs);
+      gl.linkProgram(webglProgram);
+
+      webglLocations = {
+        a_position: gl.getAttribLocation(webglProgram, 'a_position'),
+        a_texCoord: gl.getAttribLocation(webglProgram, 'a_texCoord'),
+        u_resolution: gl.getUniformLocation(webglProgram, 'u_resolution'),
+        u_translation: gl.getUniformLocation(webglProgram, 'u_translation'),
+        u_scale: gl.getUniformLocation(webglProgram, 'u_scale'),
+        u_image: gl.getUniformLocation(webglProgram, 'u_image'),
+        u_color: gl.getUniformLocation(webglProgram, 'u_color'),
+        u_useTexture: gl.getUniformLocation(webglProgram, 'u_useTexture'),
+        u_velocity: gl.getUniformLocation(webglProgram, 'u_velocity'),
+      };
+
+      quadBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        0, 0,  1, 0,  0, 1,
+        0, 1,  1, 0,  1, 1,
+      ]), gl.STATIC_DRAW);
+
+      texCoordBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        0, 0,  1, 0,  0, 1,
+        0, 1,  1, 0,  1, 1,
+      ]), gl.STATIC_DRAW);
+    } else {
+      ctxStage = galleryStageCanvas.getContext('2d', { alpha: false });
+    }
+  }
+
+  initStageRenderer();
 
   const statTotal = document.getElementById('stat-total');
   const statFps = document.getElementById('stat-fps');
@@ -77,46 +183,138 @@
 
   const imageTextureMap = new Map();
   const textureLRU = [];
-  const MAX_TEXTURE_CACHE = 250;
+  const activeFetches = new Map();
+  const pendingUploadQueue = [];
+  const MAX_TEXTURE_CACHE = 400;
 
-  function fetchImageTexture(url) {
-    if (!url) return null;
-    if (imageTextureMap.has(url)) {
-      return imageTextureMap.get(url);
+  function createGLTexture(glContext, bitmap) {
+    if (!glContext || !bitmap) return null;
+    try {
+      const tex = glContext.createTexture();
+      glContext.bindTexture(glContext.TEXTURE_2D, tex);
+      glContext.pixelStorei(glContext.UNPACK_FLIP_Y_WEBGL, false);
+      glContext.texImage2D(glContext.TEXTURE_2D, 0, glContext.RGBA, glContext.RGBA, glContext.UNSIGNED_BYTE, bitmap);
+
+      const isPow2W = (bitmap.width & (bitmap.width - 1)) === 0;
+      const isPow2H = (bitmap.height & (bitmap.height - 1)) === 0;
+      const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined' && glContext instanceof WebGL2RenderingContext);
+
+      if (isWebGL2 || (isPow2W && isPow2H)) {
+        glContext.generateMipmap(glContext.TEXTURE_2D);
+        glContext.texParameteri(glContext.TEXTURE_2D, glContext.TEXTURE_MIN_FILTER, glContext.LINEAR_MIPMAP_LINEAR);
+      } else {
+        glContext.texParameteri(glContext.TEXTURE_2D, glContext.TEXTURE_MIN_FILTER, glContext.LINEAR);
+      }
+      glContext.texParameteri(glContext.TEXTURE_2D, glContext.TEXTURE_MAG_FILTER, glContext.LINEAR);
+      glContext.texParameteri(glContext.TEXTURE_2D, glContext.TEXTURE_WRAP_S, glContext.CLAMP_TO_EDGE);
+      glContext.texParameteri(glContext.TEXTURE_2D, glContext.TEXTURE_WRAP_T, glContext.CLAMP_TO_EDGE);
+
+      return tex;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function cleanupStaleFetches(visibleUrlsSet) {
+    for (const [url, controller] of activeFetches.entries()) {
+      if (!visibleUrlsSet.has(url)) {
+        controller.abort();
+        activeFetches.delete(url);
+        imageTextureMap.delete(url);
+      }
+    }
+  }
+
+  function processPendingUploads(visibleUrlsSet) {
+    if (pendingUploadQueue.length === 0) return;
+    let count = 0;
+    const maxUploadsPerFrame = 2; // Strict GPU upload limit to keep frame time < 2ms
+
+    while (pendingUploadQueue.length > 0 && count < maxUploadsPerFrame) {
+      const item = pendingUploadQueue.shift();
+      const { url, bitmap } = item;
+
+      if (!visibleUrlsSet || visibleUrlsSet.has(url)) {
+        const glTex = gl ? createGLTexture(gl, bitmap) : null;
+        imageTextureMap.set(url, { bmp: bitmap, glTex: glTex });
+        textureLRU.push(url);
+        if (visibleUrlsSet) evictOffscreenTextures(visibleUrlsSet);
+        count++;
+      } else {
+        if (bitmap && typeof bitmap.close === 'function') {
+          try { bitmap.close(); } catch (e) {}
+        }
+        imageTextureMap.delete(url);
+      }
     }
 
-    if (textureLRU.length >= MAX_TEXTURE_CACHE) {
-      const oldestUrl = textureLRU.shift();
-      const oldestBmp = imageTextureMap.get(oldestUrl);
-      if (oldestBmp && oldestBmp.close) {
-        oldestBmp.close();
+    if (pendingUploadQueue.length > 0) {
+      requestAnimationFrame(renderVirtualGrid);
+    }
+  }
+
+  function evictOffscreenTextures(visibleUrlsSet) {
+    if (textureLRU.length <= MAX_TEXTURE_CACHE) return;
+
+    let i = 0;
+    while (i < textureLRU.length && textureLRU.length > MAX_TEXTURE_CACHE) {
+      const url = textureLRU[i];
+      if (!visibleUrlsSet.has(url)) {
+        textureLRU.splice(i, 1);
+        const item = imageTextureMap.get(url);
+        if (item) {
+          if (item.glTex && gl) {
+            try { gl.deleteTexture(item.glTex); } catch (e) {}
+          }
+          if (item.bmp && typeof item.bmp.close === 'function') {
+            try { item.bmp.close(); } catch (e) {}
+          }
+        }
+        imageTextureMap.delete(url);
+      } else {
+        i++;
       }
-      imageTextureMap.delete(oldestUrl);
+    }
+  }
+
+  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
+    if (!url) return null;
+    if (imageTextureMap.has(url)) {
+      const tex = imageTextureMap.get(url);
+      if (tex) {
+        const idx = textureLRU.indexOf(url);
+        if (idx >= 0) {
+          textureLRU.splice(idx, 1);
+          textureLRU.push(url);
+        }
+      }
+      return tex;
     }
 
     imageTextureMap.set(url, null);
 
+    const controller = new AbortController();
+    activeFetches.set(url, controller);
+
     if (window.createImageBitmap) {
-      fetch(url)
+      fetch(url, { signal: controller.signal })
         .then(res => {
-          if (!res.ok) {
-            imageTextureMap.delete(url);
-            return null;
-          }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.blob();
         })
         .then(blob => {
-          if (!blob) return null;
-          return createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' });
+          const opts = (reqW && reqH) ? { resizeWidth: reqW, resizeHeight: reqH, resizeQuality: 'medium' } : undefined;
+          return createImageBitmap(blob, opts);
         })
         .then(bitmap => {
+          activeFetches.delete(url);
           if (bitmap) {
-            imageTextureMap.set(url, bitmap);
-            textureLRU.push(url);
+            pendingUploadQueue.push({ url, bitmap });
             requestAnimationFrame(renderVirtualGrid);
           }
         })
-        .catch(() => {
+        .catch(err => {
+          activeFetches.delete(url);
           imageTextureMap.delete(url);
         });
     } else {
@@ -124,11 +322,12 @@
       img.crossOrigin = 'anonymous';
       img.src = url;
       img.onload = () => {
-        imageTextureMap.set(url, img);
-        textureLRU.push(url);
+        activeFetches.delete(url);
+        pendingUploadQueue.push({ url, bitmap: img });
         requestAnimationFrame(renderVirtualGrid);
       };
       img.onerror = () => {
+        activeFetches.delete(url);
         imageTextureMap.delete(url);
       };
     }
@@ -181,7 +380,7 @@
     state.isLoading = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=500${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
+      const url = `${API_BASE}/api/photos?limit=1000${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
       const res = await fetch(url);
       const data = await res.json();
 
@@ -189,10 +388,17 @@
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
         state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
-        if (data.photos.length < 500 || !data.next_cursor) {
+        if (data.photos.length < 1000 || !data.next_cursor) {
           state.hasMore = false;
         }
         computeLayout(isAppend);
+
+        // Fetch next batches on demand when approaching bottom
+        if (state.hasMore && state.photos.length < 2000) {
+          setTimeout(() => {
+            fetchPhotos(true);
+          }, 300);
+        }
       } else {
         state.hasMore = false;
       }
@@ -254,20 +460,38 @@
     ctx.fillRect(x, y, width, height);
   }
 
+  let isScrolling = false;
+  let scrollStopTimer = null;
+
+  function getThumbhashNormalizedColor(photo) {
+    const hashStr = photo.thumbhash || photo.id || '';
+    let hashNum = 0;
+    for (let i = 0; i < hashStr.length; i++) {
+      hashNum = (hashNum << 5) - hashNum + hashStr.charCodeAt(i);
+    }
+    const hue = (Math.abs(hashNum) % 360) / 360.0;
+    const h = hue * 6.0;
+    const c = 0.35;
+    const x = c * (1.0 - Math.abs((h % 2) - 1.0));
+    let r = 0, g = 0, b = 0;
+    if (h < 1) { r = c; g = x; }
+    else if (h < 2) { r = x; g = c; }
+    else if (h < 3) { g = c; b = x; }
+    else if (h < 4) { g = x; b = c; }
+    else if (h < 5) { r = x; b = c; }
+    else { r = c; b = x; }
+    const m = 0.15;
+    return [r + m, g + m, b + m, 1.0];
+  }
+
   function renderVirtualGrid() {
-    if (!ctxStage || !state.layoutRows || state.layoutRows.length === 0) return;
+    if ((!gl && !ctxStage) || !state.layoutRows || state.layoutRows.length === 0) return;
 
     resizeStageCanvas();
 
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const canvasW = galleryStageCanvas.width;
     const canvasH = galleryStageCanvas.height;
-
-    ctxStage.fillStyle = '#0b0f19';
-    ctxStage.fillRect(0, 0, canvasW, canvasH);
-
-    ctxStage.imageSmoothingEnabled = true;
-    ctxStage.imageSmoothingQuality = 'high';
 
     const scrollTop = scrollContainer.scrollTop;
     const viewportHeight = cachedViewportHeight || 1080;
@@ -280,35 +504,99 @@
     const endY = scrollTop + viewportHeight + 400;
 
     const visibleItems = [];
+    const visibleUrlsSet = new Set();
     const startRowIdx = binarySearchStartRow(state.layoutRows, startY);
 
     for (let r = startRowIdx; r < state.layoutRows.length; r++) {
       const row = state.layoutRows[r];
       if (row.y > endY) break;
       for (let i = 0; i < row.items.length; i++) {
-        visibleItems.push(row.items[i]);
+        const item = row.items[i];
+        visibleItems.push(item);
+        const url = getThumbUrl(item.photo);
+        if (url) visibleUrlsSet.add(url);
       }
     }
 
-    ctxStage.save();
-    ctxStage.scale(dpr, dpr);
+    cleanupStaleFetches(visibleUrlsSet);
+    processPendingUploads(visibleUrlsSet);
 
-    for (let item of visibleItems) {
-      const { photo, x, y, width, height } = item;
-      const targetY = y - scrollTop;
-      const thumbUrl = getThumbUrl(photo);
-      const texture = fetchImageTexture(thumbUrl);
+    // WebGL Hardware Mipmap Render Path
+    if (gl && webglProgram) {
+      gl.viewport(0, 0, canvasW, canvasH);
+      gl.clearColor(0.043, 0.059, 0.098, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
 
-      if (texture) {
-        ctxStage.drawImage(texture, x, targetY, width, height);
-      } else {
-        drawThumbhashQuad(ctxStage, photo, x, targetY, width, height);
+      gl.useProgram(webglProgram);
+      gl.uniform2f(webglLocations.u_resolution, canvasW / dpr, canvasH / dpr);
+      gl.uniform1f(webglLocations.u_velocity, Math.min(5.0, state.scrollVelocity || 0));
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      gl.enableVertexAttribArray(webglLocations.a_position);
+      gl.vertexAttribPointer(webglLocations.a_position, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      gl.enableVertexAttribArray(webglLocations.a_texCoord);
+      gl.vertexAttribPointer(webglLocations.a_texCoord, 2, gl.FLOAT, false, 0, 0);
+
+      for (let item of visibleItems) {
+        const { photo, x, y, width, height } = item;
+        const targetY = y - scrollTop;
+        const thumbUrl = getThumbUrl(photo);
+        const reqW = Math.round(width * dpr);
+        const reqH = Math.round(height * dpr);
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+
+        if (texObj && texObj.glTex) {
+          gl.uniform1i(webglLocations.u_useTexture, 1);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, texObj.glTex);
+          gl.uniform1i(webglLocations.u_image, 0);
+          gl.uniform2f(webglLocations.u_translation, x, targetY);
+          gl.uniform2f(webglLocations.u_scale, width, height);
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+        } else {
+          const rgba = getThumbhashNormalizedColor(photo);
+          gl.uniform1i(webglLocations.u_useTexture, 0);
+          gl.uniform4f(webglLocations.u_color, rgba[0], rgba[1], rgba[2], 1.0);
+          gl.uniform2f(webglLocations.u_translation, x, targetY);
+          gl.uniform2f(webglLocations.u_scale, width, height);
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
       }
+
+      statDom.textContent = '0 (WebGL Mipmap Engine)';
+      return;
     }
 
-    ctxStage.restore();
+    // 2D Canvas Fallback
+    if (ctxStage) {
+      ctxStage.fillStyle = '#0b0f19';
+      ctxStage.fillRect(0, 0, canvasW, canvasH);
+      ctxStage.imageSmoothingEnabled = true;
+      ctxStage.imageSmoothingQuality = isScrolling ? 'low' : 'medium';
 
-    statDom.textContent = '0 (Single Canvas)';
+      ctxStage.save();
+      ctxStage.scale(dpr, dpr);
+
+      for (let item of visibleItems) {
+        const { photo, x, y, width, height } = item;
+        const targetY = y - scrollTop;
+        const thumbUrl = getThumbUrl(photo);
+        const reqW = Math.round(width * dpr);
+        const reqH = Math.round(height * dpr);
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+
+        if (texObj && (texObj.bmp || texObj.src)) {
+          ctxStage.drawImage(texObj.bmp || texObj, x, targetY, width, height);
+        } else {
+          drawThumbhashQuad(ctxStage, photo, x, targetY, width, height);
+        }
+      }
+
+      ctxStage.restore();
+      statDom.textContent = '0 (Canvas 2D Fallback)';
+    }
   }
 
   function predecodeUpcomingPhoto(photo) {
@@ -349,290 +637,7 @@
     return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
   }
 
-  let webgpuDevice = null;
-
-  async function getWebGPUDevice() {
-    if (webgpuDevice) return webgpuDevice;
-    if (typeof navigator === 'undefined' || !navigator.gpu) return null;
-    try {
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) return null;
-      webgpuDevice = await adapter.requestDevice();
-      return webgpuDevice;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  const wgslCode = `
-    struct VertexOutput {
-      @builtin(position) Position : vec4<f32>,
-      @location(0) fragUV : vec2<f32>,
-    };
-
-    @vertex
-    fn vs_main(@builtin(vertex_index) VertexIndex : u32) -> VertexOutput {
-      var pos = array<vec2<f32>, 6>(
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>( 1.0, -1.0),
-        vec2<f32>(-1.0,  1.0),
-        vec2<f32>(-1.0,  1.0),
-        vec2<f32>( 1.0, -1.0),
-        vec2<f32>( 1.0,  1.0)
-      );
-      var uv = array<vec2<f32>, 6>(
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-        vec2<f32>(1.0, 0.0)
-      );
-
-      var output : VertexOutput;
-      output.Position = vec4<f32>(pos[VertexIndex], 0.0, 1.0);
-      output.fragUV = uv[VertexIndex];
-      return output;
-    }
-
-    @group(0) @binding(0) var mySampler: sampler;
-    @group(0) @binding(1) var myTexture: texture_2d<f32>;
-
-    @fragment
-    fn fs_main(@location(0) fragUV : vec2<f32>) -> @location(0) vec4<f32> {
-      return textureSample(myTexture, mySampler, fragUV);
-    }
-  `;
-
-  async function renderImageToWebGPUCanvas(canvas, imgElement) {
-    if (!canvas || !imgElement || !imgElement.complete || !imgElement.naturalWidth) return false;
-
-    const device = await getWebGPUDevice();
-    if (!device) return false;
-
-    try {
-      canvas.width = imgElement.naturalWidth;
-      canvas.height = imgElement.naturalHeight;
-
-      const context = canvas.getContext('webgpu');
-      if (!context) return false;
-
-      const format = navigator.gpu.getPreferredCanvasFormat();
-      context.configure({ device, format, alphaMode: 'opaque' });
-
-      const shaderModule = device.createShaderModule({ code: wgslCode });
-      const pipeline = device.createRenderPipeline({
-        layout: 'auto',
-        vertex: { module: shaderModule, entryPoint: 'vs_main' },
-        fragment: { module: shaderModule, entryPoint: 'fs_main', targets: [{ format }] },
-        primitive: { topology: 'triangle-list' },
-      });
-
-      const texture = device.createTexture({
-        size: [canvas.width, canvas.height, 1],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-
-      device.queue.copyExternalImageToTexture(
-        { source: imgElement },
-        { texture: texture },
-        [canvas.width, canvas.height]
-      );
-
-      const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: sampler },
-          { binding: 1, resource: texture.createView() },
-        ],
-      });
-
-      const commandEncoder = device.createCommandEncoder();
-      const textureView = context.getCurrentTexture().createView();
-      const renderPass = commandEncoder.beginRenderPass({
-        colorAttachments: [{ view: textureView, clearValue: { r: 0, g: 0, b: 0, a: 1 }, loadOp: 'clear', storeOp: 'store' }],
-      });
-
-      renderPass.setPipeline(pipeline);
-      renderPass.setBindGroup(0, bindGroup);
-      renderPass.draw(6, 1, 0, 0);
-      renderPass.end();
-
-      device.queue.submit([commandEncoder.finish()]);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  const vsSource = `
-    attribute vec2 aPosition;
-    attribute vec2 aTexCoord;
-    varying vec2 vTexCoord;
-    void main() {
-      gl_Position = vec4(aPosition, 0.0, 1.0);
-      vTexCoord = aTexCoord;
-    }
-  `;
-
-  const fsSource = `
-    precision mediump float;
-    varying vec2 vTexCoord;
-    uniform sampler2D uSampler;
-    void main() {
-      gl_FragColor = texture2D(uSampler, vTexCoord);
-    }
-  `;
-
-  function renderImageToWebGLCanvas(canvas, imgElement) {
-    if (!canvas || !imgElement || !imgElement.complete || !imgElement.naturalWidth) return;
-
-    canvas.width = imgElement.naturalWidth;
-    canvas.height = imgElement.naturalHeight;
-
-    let gl = canvas.getContext('webgl', { alpha: false });
-    if (!gl) gl = canvas.getContext('experimental-webgl');
-    if (!gl) return;
-
-    const vs = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vs, vsSource);
-    gl.compileShader(vs);
-
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fs, fsSource);
-    gl.compileShader(fs);
-
-    const program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    gl.useProgram(program);
-
-    const vertices = new Float32Array([
-      -1, -1,  0, 1,
-       1, -1,  1, 1,
-      -1,  1,  0, 0,
-      -1,  1,  0, 0,
-       1, -1,  1, 1,
-       1,  1,  1, 0
-    ]);
-
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-    const aPos = gl.getAttribLocation(program, 'aPosition');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
-
-    const aTex = gl.getAttribLocation(program, 'aTexCoord');
-    gl.enableVertexAttribArray(aTex);
-    gl.vertexAttribPointer(aTex, 2, gl.FLOAT, false, 16, 8);
-
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgElement);
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-  }
-
-  async function renderImageToGPUCanvas(canvas, imgElement) {
-    const successGPU = await renderImageToWebGPUCanvas(canvas, imgElement);
-    if (!successGPU) {
-      renderImageToWebGLCanvas(canvas, imgElement);
-    }
-  }
-
-  function acquirePhotoCard(item) {
-    const { photo, width, height } = item;
-    let card;
-    let canvas;
-    let img;
-
-    if (state.nodePool.length > 0) {
-      card = state.nodePool.pop();
-      canvas = card.querySelector('canvas');
-      img = card.querySelector('img');
-    } else {
-      card = document.createElement('div');
-      card.className = 'tile photo-card';
-      canvas = document.createElement('canvas');
-      canvas.className = 'thumbhash-canvas';
-      card.appendChild(canvas);
-
-      img = document.createElement('img');
-      img.className = 'real-img';
-      img.loading = 'eager';
-      img.decoding = 'async';
-      card.appendChild(img);
-
-      card.addEventListener('click', () => {
-        const photoId = card.dataset.photoId;
-        const idx = state.photos.findIndex(p => p.id === photoId);
-        if (idx >= 0) openLightbox(idx);
-      });
-    }
-
-    card.style.width = `${width}px`;
-    card.style.height = `${height}px`;
-    card.dataset.photoId = photo.id;
-
-    drawThumbhashPlaceholder(canvas, photo.thumbhash);
-
-    const thumbUrl = getThumbUrl(photo);
-    if (img.src !== thumbUrl) {
-      img.onload = () => {
-        renderImageToGPUCanvas(canvas, img);
-      };
-      img.src = thumbUrl;
-      if (img.complete) {
-        renderImageToGPUCanvas(canvas, img);
-      }
-    }
-
-    return card;
-  }
-
-  function drawThumbhashPlaceholder(canvas, thumbhashStr) {
-    const hash = thumbhashStr || 'none';
-    if (canvas.dataset.hash === hash) return;
-    canvas.dataset.hash = hash;
-
-    canvas.width = 32;
-    canvas.height = 32;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    if (!thumbhashStr) {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, 32, 32);
-      return;
-    }
-
-    const grad = ctx.createLinearGradient(0, 0, 32, 32);
-    let hashNum = 0;
-    for (let i = 0; i < thumbhashStr.length; i++) {
-      hashNum = (hashNum << 5) - hashNum + thumbhashStr.charCodeAt(i);
-    }
-
-    const c1 = `hsl(${Math.abs(hashNum) % 360}, 65%, 45%)`;
-    const c2 = `hsl(${Math.abs(hashNum * 7) % 360}, 55%, 25%)`;
-
-    grad.addColorStop(0, c1);
-    grad.addColorStop(1, c2);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 32, 32);
-  }
-
-  // Off-Thread Idle Prefetching (0ms Blocking Delay - 15 Photos Ahead / 8 Behind)
+  // Off-Thread Idle Prefetching (0ms Blocking Delay - 30 Photos Ahead / 15 Behind)
   function scheduleIdlePrefetch(currentIndex, direction = 1) {
     const runPrefetch = () => {
       if (!state.photos || state.photos.length === 0) return;
@@ -770,6 +775,24 @@
 
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
+      isScrolling = true;
+      const now = Date.now();
+      const dt = Math.max(1, now - (state.lastScrollTime || now));
+      const dy = scrollContainer.scrollTop - (state.lastScrollTop || 0);
+      if (dy !== 0) {
+        state.scrollDirection = dy > 0 ? 1 : -1;
+      }
+      state.scrollVelocity = Math.abs(dy / dt);
+      state.lastScrollTop = scrollContainer.scrollTop;
+      state.lastScrollTime = now;
+
+      if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      scrollStopTimer = setTimeout(() => {
+        isScrolling = false;
+        state.scrollVelocity = 0;
+        requestAnimationFrame(renderVirtualGrid);
+      }, 150);
+
       if (!rAFPending) {
         rAFPending = true;
         requestAnimationFrame(() => {

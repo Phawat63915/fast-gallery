@@ -84,7 +84,7 @@
     state.isLoading = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=500${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
+      const url = `${API_BASE}/api/photos?limit=1000${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
       const res = await fetch(url);
       const data = await res.json();
 
@@ -92,14 +92,22 @@
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
         state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
-        if (data.photos.length < 500 || !data.next_cursor) {
+        if (data.photos.length < 1000 || !data.next_cursor) {
           state.hasMore = false;
         }
         computeLayout(isAppend);
+
         // Instant Warmup: Prefetch top 100 images into browser memory cache immediately!
         const warmupCount = Math.min(100, state.photos.length);
         for (let i = 0; i < warmupCount; i++) {
           prefetchSingleUrl(state.photos[i]);
+        }
+
+        // Auto-prefetch remaining photo metadata in background
+        if (state.hasMore) {
+          setTimeout(() => {
+            fetchPhotos(true);
+          }, 50);
         }
       } else {
         state.hasMore = false;

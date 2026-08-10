@@ -667,12 +667,12 @@
   }
 
   function computeLayout(isAppend = false) {
-    const containerWidth = scrollContainer.clientWidth || window.innerWidth;
+    const containerWidth = (scrollContainer.clientWidth || window.innerWidth) - 8;
     layoutWorker.postMessage({
       photos: state.photos,
-      containerWidth: containerWidth,
-      gap: 2,
-      mode: state.layoutMode || 'masonry',
+      containerWidth: Math.max(320, containerWidth),
+      targetRowHeight: 220,
+      gap: 3,
       isAppend: isAppend,
     });
   }

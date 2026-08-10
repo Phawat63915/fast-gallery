@@ -1,5 +1,5 @@
 // FastGallery Resolution-Aware Multi-Engine Layout Worker
-// Features: Resolution-Aware Scaling (width & height), Multi-Span 2x Wide 4K Cards, Anti-Blur Clamping
+// Features: Dynamic Zoom Scaling (Target 240px), Resolution-Aware Scaling, Anti-Blur Clamping
 
 let cachedState = {
   photosLength: 0,
@@ -21,16 +21,9 @@ self.onmessage = function (e) {
   const gridGap = gap !== undefined ? gap : 2;
   const layoutMode = mode || 'masonry';
 
-  let cols = 2;
-  if (containerWidth > 1500) {
-    cols = 6;
-  } else if (containerWidth > 1150) {
-    cols = 5;
-  } else if (containerWidth > 800) {
-    cols = 4;
-  } else if (containerWidth > 500) {
-    cols = 3;
-  }
+  // Dynamic Responsive Column Math (Target ~240px - scales dynamically when zooming Ctrl +/-)
+  const targetColWidth = 240;
+  let cols = Math.max(2, Math.floor((containerWidth + gridGap) / (targetColWidth + gridGap)));
 
   const totalGaps = (cols - 1) * gridGap;
   const availableWidth = containerWidth - totalGaps;
@@ -52,10 +45,9 @@ self.onmessage = function (e) {
       const minCol = colHeights.indexOf(Math.min(...colHeights));
       const itemW = baseColWidth + (minCol < remainderPixels ? 1 : 0);
       
-      // Calculate height with resolution awareness (prevent small images from stretching excessively)
       let maxH = Math.min(420, Math.floor(itemW * 1.35));
       if (photo.height && photo.height < 400) {
-        maxH = Math.min(maxH, photo.height); // Anti-blur resolution cap
+        maxH = Math.min(maxH, photo.height);
       }
       const minH = Math.max(80, Math.floor(itemW * 0.5));
       const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / ar)));
@@ -111,13 +103,11 @@ self.onmessage = function (e) {
     const rawAR = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
     const photoW = photo.width || 1200;
     
-    // High-Res Landscape screenshots (Width >= 1200 & AR >= 1.35) take 2 columns wide!
     let colSpan = 1;
     if (photoW >= 1200 && rawAR >= 1.35 && cols >= 4) {
       colSpan = 2;
     }
 
-    // Find consecutive columns with lowest Y height
     let bestCol = 0;
     let minY = Infinity;
 

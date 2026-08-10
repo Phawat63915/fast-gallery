@@ -561,12 +561,15 @@
         let uvScaleX = 1.0, uvScaleY = 1.0;
         let uvOffsetX = 0.0, uvOffsetY = 0.0;
 
-        if (boxAspect > photoAspect) {
-          uvScaleY = photoAspect / boxAspect;
-          uvOffsetY = (1.0 - uvScaleY) * 0.15; // Preserve top details (heads, faces, hair, titles)
-        } else if (boxAspect < photoAspect) {
-          uvScaleX = boxAspect / photoAspect;
-          uvOffsetX = (1.0 - uvScaleX) * 0.5;
+        // Apply UV cropping only when box and photo aspect ratios differ by > 4%
+        if (Math.abs(boxAspect - photoAspect) > 0.04) {
+          if (boxAspect > photoAspect) {
+            uvScaleY = photoAspect / boxAspect;
+            uvOffsetY = (1.0 - uvScaleY) * 0.15;
+          } else {
+            uvScaleX = boxAspect / photoAspect;
+            uvOffsetX = (1.0 - uvScaleX) * 0.5;
+          }
         }
 
         gl.uniform2f(webglLocations.u_uv_scale, uvScaleX, uvScaleY);

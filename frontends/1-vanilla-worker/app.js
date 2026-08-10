@@ -108,8 +108,14 @@
     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       var texColor = textureSample(myTexture, mySampler, in.uv);
       let lum = dot(texColor.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-      let vividRgb = mix(vec3<f32>(lum), texColor.rgb, 1.08);
-      return vec4<f32>(vividRgb, texColor.a);
+      let vividRgb = mix(vec3<f32>(lum), texColor.rgb, 1.06);
+
+      // GPU Vignette Border for Apple/NVIDIA High-End Aesthetics
+      let edgeDist = min(min(in.uv.x, 1.0 - in.uv.x), min(in.uv.y, 1.0 - in.uv.y));
+      let borderFactor = smoothstep(0.0, 0.015, edgeDist);
+      let finalRgb = vividRgb * mix(0.94, 1.0, borderFactor);
+
+      return vec4<f32>(finalRgb, texColor.a);
     }
   `;
 
@@ -546,7 +552,7 @@
     }
   }
 
-  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
+  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH, distFromCenter = 0) {
     if (!url) return null;
     if (imageTextureMap.has(url)) {
       const tex = imageTextureMap.get(url);
@@ -562,8 +568,9 @@
 
     imageTextureMap.set(url, null);
 
-    fetchQueue.unshift({ url, visibleUrlsSet, reqW, reqH });
-    processFetchQueue();
+    fetchQueue.push({ url, reqW, reqH, dist: distFromCenter });
+    fetchQueue.sort((a, b) => a.dist - b.dist);
+    processFetchQueue(visibleUrlsSet);
 
     return null;
   }
@@ -753,9 +760,8 @@
         const targetY = y - scrollTop;
         const thumbUrl = getThumbUrl(photo);
 
-        const reqW = Math.round(width * dpr);
-        const reqH = Math.round(height * dpr);
-        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+        const distFromCenter = Math.abs((targetY + height * 0.5) - (vpHeight * 0.5));
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH, distFromCenter);
 
         if (texObj && texObj.gpuTex) {
           let itemObj = webgpuBindGroupMap.get(thumbUrl);
@@ -878,9 +884,8 @@
         const { photo, x, y, width, height } = item;
         const targetY = y - scrollTop;
         const thumbUrl = getThumbUrl(photo);
-        const reqW = Math.round(width * dpr);
-        const reqH = Math.round(height * dpr);
-        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+        const distFromCenter = Math.abs((targetY + height * 0.5) - (cachedViewportHeight * 0.5));
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH, distFromCenter);
 
         const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
         const boxAspect = width / height;

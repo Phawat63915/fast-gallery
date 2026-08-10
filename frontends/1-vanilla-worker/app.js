@@ -70,6 +70,7 @@
       resolution: vec2<f32>, // viewport width, height
       uv_scale: vec2<f32>,
       uv_offset: vec2<f32>,
+      padding: vec2<f32>,
     };
 
     struct VertexOutput {

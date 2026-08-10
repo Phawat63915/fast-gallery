@@ -1,5 +1,5 @@
 // FastGallery Multi-Engine Layout Worker (Masonry Pinterest vs Uniform Grid Google Photos)
-// Features: 0% Cropping Masonry Waterfall, Pixel-Perfect Symmetric Grid, Zero Lag
+// Features: Pixel-Perfect Symmetric Columns, Clamped Aspect Ratios, Zero Lag
 
 let cachedState = {
   photosLength: 0,
@@ -21,39 +21,53 @@ self.onmessage = function (e) {
   const gridGap = gap !== undefined ? gap : 2;
   const layoutMode = mode || 'masonry';
 
-  let cols = 2; // Mobile Portrait default (2 columns)
-  if (containerWidth > 1400) {
+  let cols = 2; // Mobile Portrait default
+  if (containerWidth > 1500) {
+    cols = 6;
+  } else if (containerWidth > 1200) {
     cols = 5;
-  } else if (containerWidth > 1000) {
+  } else if (containerWidth > 900) {
     cols = 4;
   } else if (containerWidth > 580) {
     cols = 3;
   }
 
   const totalGaps = (cols - 1) * gridGap;
-  const colWidth = Math.floor((containerWidth - totalGaps) / cols);
+  const availableWidth = containerWidth - totalGaps;
+  const baseColWidth = Math.floor(availableWidth / cols);
+  const remainderPixels = availableWidth % cols;
 
   if (layoutMode === 'masonry') {
     // -------------------------------------------------------------
-    // 1. Pinterest / Unsplash Masonry Engine (0% Cropping, Full Photo)
+    // 1. Masonry Engine (Smart Balanced Waterfall, Clamped Heights)
     // -------------------------------------------------------------
     const colHeights = new Array(cols).fill(0);
     const colItems = Array.from({ length: cols }, () => []);
 
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
-      const ar = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
-      const minCol = colHeights.indexOf(Math.min(...colHeights));
+      let rawAR = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+      
+      // Clamp aspect ratio between 0.75 (portrait) and 2.0 (landscape) to prevent oversized stretching
+      const ar = Math.max(0.75, Math.min(2.0, rawAR));
 
-      const itemW = colWidth;
-      const itemH = Math.max(60, Math.min(600, Math.floor(colWidth / ar)));
-      const x = minCol * (colWidth + gridGap);
-      const y = colHeights[minCol];
+      const minCol = colHeights.indexOf(Math.min(...colHeights));
+      const itemW = baseColWidth + (minCol < remainderPixels ? 1 : 0);
+      
+      // Calculate balanced item height (capped at 420px max)
+      const maxH = Math.min(420, Math.floor(baseColWidth * 1.35));
+      const minH = Math.max(90, Math.floor(baseColWidth * 0.5));
+      const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / ar)));
+
+      let currentX = 0;
+      for (let c = 0; c < minCol; c++) {
+        currentX += (baseColWidth + (c < remainderPixels ? 1 : 0)) + gridGap;
+      }
 
       colItems[minCol].push({
         photo: photo,
-        x: x,
-        y: y,
+        x: currentX,
+        y: colHeights[minCol],
         width: itemW,
         height: itemH,
       });
@@ -95,11 +109,10 @@ self.onmessage = function (e) {
   }
 
   // -------------------------------------------------------------
-  // 2. Uniform Responsive Grid Engine (Google / Apple Photos Mode)
+  // 2. Uniform Responsive Grid Engine (Pixel-Perfect Symmetric Grid)
   // -------------------------------------------------------------
   const targetAR = 1.6;
-  const tileHeight = Math.floor(colWidth / targetAR);
-  const extraPixels = containerWidth - (colWidth * cols + totalGaps);
+  const tileHeight = Math.floor(baseColWidth / targetAR);
 
   let rows = [];
   let currentY = 0;
@@ -111,7 +124,7 @@ self.onmessage = function (e) {
 
     for (let c = 0; c < rowPhotos.length; c++) {
       const photo = rowPhotos[c];
-      const itemW = colWidth + (c === rowPhotos.length - 1 && rowPhotos.length === cols ? extraPixels : 0);
+      const itemW = baseColWidth + (c < remainderPixels ? 1 : 0);
 
       layoutItems.push({
         photo: photo,

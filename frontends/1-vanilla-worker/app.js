@@ -996,20 +996,32 @@
     if (reqW > 320 || window.devicePixelRatio > 1.2) {
       return getOriginalUrl(photo);
     }
+    if (photo._thumbUrl) return photo._thumbUrl;
+
+    let res = '';
     if (photo.filename) {
-      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+      res = photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/thumbnails/${photo.filename}`;
+    } else {
+      const fallback = photo.micro_url || photo.original_url || '';
+      res = fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
     }
-    const fallback = photo.micro_url || photo.original_url || '';
-    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+    photo._thumbUrl = res;
+    return res;
   }
 
   function getOriginalUrl(photo) {
     if (!photo) return '';
+    if (photo._origUrl) return photo._origUrl;
+
+    let res = '';
     if (photo.filename) {
-      return photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+      res = photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
+    } else {
+      const fallback = photo.original_url || photo.micro_url || '';
+      res = fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
     }
-    const fallback = photo.original_url || photo.micro_url || '';
-    return fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
+    photo._origUrl = res;
+    return res;
   }
 
   // Off-Thread Idle Prefetching (0ms Blocking Delay - 30 Photos Ahead / 15 Behind)

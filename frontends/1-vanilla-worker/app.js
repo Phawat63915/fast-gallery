@@ -746,38 +746,37 @@
         const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
 
         if (texObj && texObj.gpuTex) {
-          let bindGroup = webgpuBindGroupMap.get(thumbUrl);
-          if (!bindGroup) {
-            const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
-            const boxAspect = width / height;
-            let uvScaleX = 1.0, uvScaleY = 1.0;
-            let uvOffsetX = 0.0, uvOffsetY = 0.0;
+          let itemObj = webgpuBindGroupMap.get(thumbUrl);
 
-            if (Math.abs(boxAspect - photoAspect) > 0.04) {
-              if (boxAspect > photoAspect) {
-                uvScaleY = photoAspect / boxAspect;
-                uvOffsetY = (1.0 - uvScaleY) * 0.15;
-              } else {
-                uvScaleX = boxAspect / photoAspect;
-                uvOffsetX = (1.0 - uvScaleX) * 0.5;
-              }
+          const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+          const boxAspect = width / height;
+          let uvScaleX = 1.0, uvScaleY = 1.0;
+          let uvOffsetX = 0.0, uvOffsetY = 0.0;
+
+          if (Math.abs(boxAspect - photoAspect) > 0.04) {
+            if (boxAspect > photoAspect) {
+              uvScaleY = photoAspect / boxAspect;
+              uvOffsetY = (1.0 - uvScaleY) * 0.15;
+            } else {
+              uvScaleX = boxAspect / photoAspect;
+              uvOffsetX = (1.0 - uvScaleX) * 0.5;
             }
+          }
 
-            const uniformData = new Float32Array([
-              x, targetY, width, height,
-              vpWidth, vpHeight,
-              uvScaleX, uvScaleY,
-              uvOffsetX, uvOffsetY,
-              0, 0
-            ]);
+          const uniformData = new Float32Array([
+            x, targetY, width, height,
+            vpWidth, vpHeight,
+            uvScaleX, uvScaleY,
+            uvOffsetX, uvOffsetY,
+            0, 0
+          ]);
 
+          if (!itemObj) {
             const uniformBuffer = gpuDevice.createBuffer({
               size: uniformData.byteLength,
               usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             });
-            gpuDevice.queue.writeBuffer(uniformBuffer, 0, uniformData);
-
-            bindGroup = gpuDevice.createBindGroup({
+            const bindGroup = gpuDevice.createBindGroup({
               layout: gpuPipeline.getBindGroupLayout(0),
               entries: [
                 { binding: 0, resource: gpuSampler },
@@ -785,10 +784,13 @@
                 { binding: 2, resource: { buffer: uniformBuffer } },
               ],
             });
-            webgpuBindGroupMap.set(thumbUrl, bindGroup);
+            itemObj = { bindGroup, uniformBuffer };
+            webgpuBindGroupMap.set(thumbUrl, itemObj);
           }
 
-          renderPass.setBindGroup(0, bindGroup);
+          gpuDevice.queue.writeBuffer(itemObj.uniformBuffer, 0, uniformData);
+
+          renderPass.setBindGroup(0, itemObj.bindGroup);
           renderPass.draw(6);
         }
       }

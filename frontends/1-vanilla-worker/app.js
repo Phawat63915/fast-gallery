@@ -11,6 +11,7 @@
     nextCursor: 0,
     hasMore: true,
     isLoading: false,
+    layoutMode: 'masonry', // Default to Pinterest Masonry Engine (0% Cropping, Full Photo)
     
     currentPhotoIndex: -1,
     lastWheelTime: 0,
@@ -424,6 +425,7 @@
       photos: state.photos,
       containerWidth: containerWidth,
       gap: 2,
+      mode: state.layoutMode || 'masonry',
       isAppend: isAppend,
     });
   }
@@ -1034,6 +1036,20 @@
           await fetchPhotos();
           await fetchServerStats();
         }, 800);
+      });
+    }
+
+    const btnLayoutToggle = document.getElementById('btn-layout-toggle');
+    if (btnLayoutToggle) {
+      btnLayoutToggle.addEventListener('click', () => {
+        if (state.layoutMode === 'masonry') {
+          state.layoutMode = 'grid';
+          btnLayoutToggle.textContent = '🔲 Grid';
+        } else {
+          state.layoutMode = 'masonry';
+          btnLayoutToggle.textContent = '📌 Masonry';
+        }
+        computeLayout();
       });
     }
 

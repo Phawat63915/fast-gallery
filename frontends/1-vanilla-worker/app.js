@@ -1115,6 +1115,28 @@
   let rAFPending = false;
   let resizePending = false;
 
+  function handleCanvasClick(e) {
+    if (!state.layoutRows || state.layoutRows.length === 0 || !galleryStageCanvas) return;
+    const rect = galleryStageCanvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top + scrollContainer.scrollTop;
+
+    for (let r = 0; r < state.layoutRows.length; r++) {
+      const row = state.layoutRows[r];
+      if (clickY >= row.y && clickY <= row.y + row.height) {
+        for (let i = 0; i < row.items.length; i++) {
+          const item = row.items[i];
+          if (clickX >= item.x && clickX <= item.x + item.width) {
+            const photoId = item.photo.id;
+            const idx = state.photos.findIndex(p => p.id === photoId);
+            if (idx >= 0) openLightbox(idx);
+            return;
+          }
+        }
+      }
+    }
+  }
+
   function setupEventListeners() {
     scrollContainer.addEventListener('scroll', () => {
       isScrolling = true;
@@ -1144,28 +1166,9 @@
       }
     }, { passive: true });
 
+    scrollContainer.addEventListener('click', handleCanvasClick);
     if (galleryStageCanvas) {
-      galleryStageCanvas.addEventListener('click', (e) => {
-        if (!state.layoutRows || state.layoutRows.length === 0) return;
-        const rect = galleryStageCanvas.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top + scrollContainer.scrollTop;
-
-        for (let r = 0; r < state.layoutRows.length; r++) {
-          const row = state.layoutRows[r];
-          if (clickY >= row.y && clickY <= row.y + row.height) {
-            for (let i = 0; i < row.items.length; i++) {
-              const item = row.items[i];
-              if (clickX >= item.x && clickX <= item.x + item.width) {
-                const photoId = item.photo.id;
-                const idx = state.photos.findIndex(p => p.id === photoId);
-                if (idx >= 0) openLightbox(idx);
-                return;
-              }
-            }
-          }
-        }
-      });
+      galleryStageCanvas.addEventListener('click', handleCanvasClick);
     }
 
     window.addEventListener('resize', () => {

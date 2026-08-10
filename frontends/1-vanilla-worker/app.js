@@ -401,7 +401,7 @@
   function processPendingUploads(visibleUrlsSet) {
     if (pendingUploadQueue.length === 0) return;
     let count = 0;
-    const maxUploadsPerFrame = 2;
+    const maxUploadsPerFrame = Math.min(8, Math.max(2, pendingUploadQueue.length));
 
     while (pendingUploadQueue.length > 0 && count < maxUploadsPerFrame) {
       const item = pendingUploadQueue.shift();
@@ -460,7 +460,12 @@
   }
 
   const fetchQueue = [];
-  const MAX_CONCURRENT_FETCHES = 6;
+
+  function getDynamicMaxConcurrency(visibleCount) {
+    if (visibleCount > 60) return 14;
+    if (visibleCount > 30) return 10;
+    return 6;
+  }
 
   function cleanupStaleFetches(visibleUrlsSet) {
     for (const [url, controller] of activeFetches.entries()) {
@@ -470,20 +475,21 @@
         imageTextureMap.delete(url);
       }
     }
-    // Prune stale un-started tasks from memory queue
     for (let i = fetchQueue.length - 1; i >= 0; i--) {
       if (!visibleUrlsSet.has(fetchQueue[i].url)) {
         imageTextureMap.delete(fetchQueue[i].url);
         fetchQueue.splice(i, 1);
       }
     }
-    processFetchQueue();
+    processFetchQueue(visibleUrlsSet);
   }
 
-  function processFetchQueue() {
-    while (activeFetches.size < MAX_CONCURRENT_FETCHES && fetchQueue.length > 0) {
+  function processFetchQueue(visibleUrlsSet) {
+    const maxConcurrency = getDynamicMaxConcurrency(visibleUrlsSet ? visibleUrlsSet.size : 0);
+
+    while (activeFetches.size < maxConcurrency && fetchQueue.length > 0) {
       const task = fetchQueue.shift();
-      const { url, visibleUrlsSet, reqW, reqH } = task;
+      const { url, reqW, reqH } = task;
 
       if (visibleUrlsSet && !visibleUrlsSet.has(url)) {
         imageTextureMap.delete(url);
@@ -505,7 +511,8 @@
           return res.blob();
         })
         .then(blob => {
-          const opts = reqW ? { resizeWidth: Math.max(reqW, 360), resizeQuality: 'medium' } : undefined;
+          const targetW = reqW ? Math.max(160, Math.min(reqW, 600)) : 300;
+          const opts = { resizeWidth: targetW, resizeQuality: 'medium' };
           return createImageBitmap(blob, opts);
         })
         .then(bitmap => {
@@ -514,12 +521,12 @@
             pendingUploadQueue.push({ url, bitmap });
             requestAnimationFrame(renderVirtualGrid);
           }
-          processFetchQueue();
+          processFetchQueue(visibleUrlsSet);
         })
         .catch(err => {
           activeFetches.delete(url);
           imageTextureMap.delete(url);
-          processFetchQueue();
+          processFetchQueue(visibleUrlsSet);
         });
     } else {
       const img = new Image();

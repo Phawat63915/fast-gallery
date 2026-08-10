@@ -126,31 +126,37 @@ func (db *DB) migrateSchema() error {
 	return err
 }
 
-func (db *DB) GetPhotos(cursor int64, limit int) ([]Photo, error) {
+func (db *DB) GetPhotos(cursor int64, offset int, limit int) ([]Photo, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	if limit <= 0 || limit > 500 {
-		limit = 200
+	if limit <= 0 || limit > 10000 {
+		limit = 1000
 	}
 
 	var rows *sql.Rows
 	var err error
 
 	if db.driver == "postgres" {
-		if cursor > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2`
+		if offset > 0 {
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`
+			rows, err = db.conn.Query(query, limit, offset)
+		} else if cursor > 0 {
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at <= $1 ORDER BY created_at DESC, id DESC LIMIT $2`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC LIMIT $1`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1`
 			rows, err = db.conn.Query(query, limit)
 		}
 	} else {
-		if cursor > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at < ? ORDER BY created_at DESC LIMIT ?`
+		if offset > 0 {
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+			rows, err = db.conn.Query(query, limit, offset)
+		} else if cursor > 0 {
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at <= ? ORDER BY created_at DESC, id DESC LIMIT ?`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC LIMIT ?`
+			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ?`
 			rows, err = db.conn.Query(query, limit)
 		}
 	}

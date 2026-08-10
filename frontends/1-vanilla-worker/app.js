@@ -381,24 +381,24 @@
     state.isLoading = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=1000${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
+      const offset = isAppend ? state.photos.length : 0;
+      const url = `${API_BASE}/api/photos?limit=1000&offset=${offset}`;
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.photos && data.photos.length > 0) {
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
-        state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
-        if (data.photos.length < 1000 || !data.next_cursor) {
+        if (data.photos.length < 1000) {
           state.hasMore = false;
         }
         computeLayout(isAppend);
 
-        // Fetch next batches on demand when approaching bottom
-        if (state.hasMore && state.photos.length < 2000) {
+        // Auto-fetch next batches in background until all 6,231 photos are loaded
+        if (state.hasMore) {
           setTimeout(() => {
             fetchPhotos(true);
-          }, 300);
+          }, 100);
         }
       } else {
         state.hasMore = false;

@@ -167,9 +167,10 @@ func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Vary", "Accept-Encoding")
 
 	cursorStr := r.URL.Query().Get("cursor")
+	offsetStr := r.URL.Query().Get("offset")
 	limitStr := r.URL.Query().Get("limit")
 
-	cacheKey := fmt.Sprintf("photos_%s_%s", cursorStr, limitStr)
+	cacheKey := fmt.Sprintf("photos_%s_%s_%s", cursorStr, offsetStr, limitStr)
 
 	// Sub-millisecond Cache Check
 	apiCacheMutex.RLock()
@@ -182,16 +183,20 @@ func handleGetPhotos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var cursor int64 = 0
-	limit := 200
+	offset := 0
+	limit := 1000
 
 	if cursorStr != "" {
 		cursor, _ = strconv.ParseInt(cursorStr, 10, 64)
+	}
+	if offsetStr != "" {
+		offset, _ = strconv.Atoi(offsetStr)
 	}
 	if limitStr != "" {
 		limit, _ = strconv.Atoi(limitStr)
 	}
 
-	photos, err := database.GetPhotos(cursor, limit)
+	photos, err := database.GetPhotos(cursor, offset, limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Query error: %v", err), http.StatusInternalServerError)
 		return

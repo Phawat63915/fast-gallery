@@ -128,7 +128,16 @@
         return false;
       }
       gpuDevice = await gpuAdapter.requestDevice();
-      gpuContext = galleryStageCanvas.getContext('webgpu');
+
+      let ctx = galleryStageCanvas ? galleryStageCanvas.getContext('webgpu') : null;
+      if (!ctx && galleryStageCanvas && galleryStageCanvas.parentNode) {
+        const freshCanvas = galleryStageCanvas.cloneNode(true);
+        galleryStageCanvas.parentNode.replaceChild(freshCanvas, galleryStageCanvas);
+        galleryStageCanvas = freshCanvas;
+        ctx = galleryStageCanvas.getContext('webgpu');
+      }
+
+      gpuContext = ctx;
       if (!gpuContext) {
         const msg = 'webgpu context null';
         console.warn('[FastGallery]', msg);

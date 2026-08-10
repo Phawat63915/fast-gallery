@@ -8,6 +8,7 @@
     nextCursor: 0,
     hasMore: true,
     isLoading: false,
+    layoutMode: 'masonry',
     
     currentPhotoIndex: -1,
     lastWheelTime: 0,
@@ -84,30 +85,24 @@
     state.isLoading = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=1000${state.nextCursor ? '&cursor=' + state.nextCursor : ''}`;
+      const offset = isAppend ? state.photos.length : 0;
+      const url = `${API_BASE}/api/photos?limit=1000&offset=${offset}`;
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.photos && data.photos.length > 0) {
         state.photos = isAppend ? state.photos.concat(data.photos) : data.photos;
-        state.nextCursor = data.next_cursor;
         statTotal.textContent = state.photos.length.toLocaleString();
-        if (data.photos.length < 1000 || !data.next_cursor) {
+        if (data.photos.length < 1000) {
           state.hasMore = false;
         }
         computeLayout(isAppend);
-
-        // Instant Warmup: Prefetch top 100 images into browser memory cache immediately!
-        const warmupCount = Math.min(100, state.photos.length);
-        for (let i = 0; i < warmupCount; i++) {
-          prefetchSingleUrl(state.photos[i]);
-        }
 
         // Auto-prefetch remaining photo metadata in background
         if (state.hasMore) {
           setTimeout(() => {
             fetchPhotos(true);
-          }, 50);
+          }, 100);
         }
       } else {
         state.hasMore = false;
@@ -128,12 +123,12 @@
   }
 
   function computeLayout(isAppend = false) {
-    const containerWidth = scrollContainer.clientWidth - 48;
+    const containerWidth = scrollContainer.clientWidth || window.innerWidth;
     layoutWorker.postMessage({
       photos: state.photos,
-      containerWidth: Math.max(320, containerWidth),
-      targetRowHeight: 220,
-      gap: 12,
+      containerWidth: containerWidth,
+      gap: 2,
+      mode: state.layoutMode || 'masonry',
       isAppend: isAppend,
     });
   }
@@ -643,6 +638,20 @@
           await fetchPhotos();
           await fetchServerStats();
         }, 800);
+      });
+    }
+
+    const btnLayoutToggle = document.getElementById('btn-layout-toggle');
+    if (btnLayoutToggle) {
+      btnLayoutToggle.addEventListener('click', () => {
+        if (state.layoutMode === 'masonry') {
+          state.layoutMode = 'grid';
+          btnLayoutToggle.textContent = '🔲 Grid';
+        } else {
+          state.layoutMode = 'masonry';
+          btnLayoutToggle.textContent = '📌 Masonry';
+        }
+        computeLayout();
       });
     }
 

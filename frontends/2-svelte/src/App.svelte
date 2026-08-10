@@ -67,21 +67,21 @@
     isLoadingMore = true;
 
     try {
-      const url = `${API_BASE}/api/photos?limit=1000${nextCursor ? `&cursor=${nextCursor}` : ''}`;
+      const offset = isAppend ? photos.length : 0;
+      const url = `${API_BASE}/api/photos?limit=1000&offset=${offset}`;
       const res = await fetch(url);
       const data = await res.json();
       const newPhotos = data.photos || [];
 
-      if (newPhotos.length < 1000 || !data.next_cursor) {
+      if (newPhotos.length < 1000) {
         hasMorePhotos = false;
       }
-      nextCursor = data.next_cursor || 0;
       photos = isAppend ? [...photos, ...newPhotos] : newPhotos;
 
       if (hasMorePhotos) {
         setTimeout(() => {
           fetchPhotos(true);
-        }, 50);
+        }, 100);
       }
     } catch (e) {
       console.error(e);
@@ -414,7 +414,7 @@
     contain-intrinsic-size: 220px 300px;
   }
   
-  .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; will-change: transform; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; object-position: center 15%; transition: transform 0.25s ease; will-change: transform; }
   .tile:hover img { transform: scale(1.04); }
   .lightbox { position: fixed; inset: 0; background: rgba(4,7,13,0.96); z-index: 2000; display: flex; flex-direction: column; }
   .lightbox-bar { height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }

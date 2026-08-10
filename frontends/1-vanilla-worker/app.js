@@ -217,20 +217,10 @@
     }
   }
 
-  function cleanupStaleFetches(visibleUrlsSet) {
-    for (const [url, controller] of activeFetches.entries()) {
-      if (!visibleUrlsSet.has(url)) {
-        controller.abort();
-        activeFetches.delete(url);
-        imageTextureMap.delete(url);
-      }
-    }
-  }
-
   function processPendingUploads(visibleUrlsSet) {
     if (pendingUploadQueue.length === 0) return;
     let count = 0;
-    const maxUploadsPerFrame = 2; // Strict GPU upload limit to keep frame time < 2ms
+    const maxUploadsPerFrame = 2;
 
     while (pendingUploadQueue.length > 0 && count < maxUploadsPerFrame) {
       const item = pendingUploadQueue.shift();
@@ -279,22 +269,42 @@
     }
   }
 
-  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
-    if (!url) return null;
-    if (imageTextureMap.has(url)) {
-      const tex = imageTextureMap.get(url);
-      if (tex) {
-        const idx = textureLRU.indexOf(url);
-        if (idx >= 0) {
-          textureLRU.splice(idx, 1);
-          textureLRU.push(url);
-        }
+  const fetchQueue = [];
+  const MAX_CONCURRENT_FETCHES = 6;
+
+  function cleanupStaleFetches(visibleUrlsSet) {
+    for (const [url, controller] of activeFetches.entries()) {
+      if (!visibleUrlsSet.has(url)) {
+        controller.abort();
+        activeFetches.delete(url);
+        imageTextureMap.delete(url);
       }
-      return tex;
     }
+    // Prune stale un-started tasks from memory queue
+    for (let i = fetchQueue.length - 1; i >= 0; i--) {
+      if (!visibleUrlsSet.has(fetchQueue[i].url)) {
+        imageTextureMap.delete(fetchQueue[i].url);
+        fetchQueue.splice(i, 1);
+      }
+    }
+    processFetchQueue();
+  }
 
-    imageTextureMap.set(url, null);
+  function processFetchQueue() {
+    while (activeFetches.size < MAX_CONCURRENT_FETCHES && fetchQueue.length > 0) {
+      const task = fetchQueue.shift();
+      const { url, visibleUrlsSet, reqW, reqH } = task;
 
+      if (visibleUrlsSet && !visibleUrlsSet.has(url)) {
+        imageTextureMap.delete(url);
+        continue;
+      }
+
+      executeFetch(url, visibleUrlsSet, reqW, reqH);
+    }
+  }
+
+  function executeFetch(url, visibleUrlsSet, reqW, reqH) {
     const controller = new AbortController();
     activeFetches.set(url, controller);
 
@@ -314,10 +324,12 @@
             pendingUploadQueue.push({ url, bitmap });
             requestAnimationFrame(renderVirtualGrid);
           }
+          processFetchQueue();
         })
         .catch(err => {
           activeFetches.delete(url);
           imageTextureMap.delete(url);
+          processFetchQueue();
         });
     } else {
       const img = new Image();
@@ -327,12 +339,34 @@
         activeFetches.delete(url);
         pendingUploadQueue.push({ url, bitmap: img });
         requestAnimationFrame(renderVirtualGrid);
+        processFetchQueue();
       };
       img.onerror = () => {
         activeFetches.delete(url);
         imageTextureMap.delete(url);
+        processFetchQueue();
       };
     }
+  }
+
+  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
+    if (!url) return null;
+    if (imageTextureMap.has(url)) {
+      const tex = imageTextureMap.get(url);
+      if (tex) {
+        const idx = textureLRU.indexOf(url);
+        if (idx >= 0) {
+          textureLRU.splice(idx, 1);
+          textureLRU.push(url);
+        }
+      }
+      return tex;
+    }
+
+    imageTextureMap.set(url, null);
+
+    fetchQueue.unshift({ url, visibleUrlsSet, reqW, reqH });
+    processFetchQueue();
 
     return null;
   }

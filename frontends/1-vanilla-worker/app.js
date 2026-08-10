@@ -992,22 +992,16 @@
   }
 
   function getThumbUrl(photo) {
-    return getOriginalUrl(photo);
+    if (!photo) return '';
+    if (photo._url) return photo._url;
+    const fallback = photo.original_url || photo.micro_url || photo.filename || '';
+    const res = fallback.startsWith('http') ? fallback : (fallback.startsWith('/uploads/') ? `${API_BASE}${fallback}` : `${API_BASE}/uploads/originals/${fallback}`);
+    photo._url = res;
+    return res;
   }
 
   function getOriginalUrl(photo) {
-    if (!photo) return '';
-    if (photo._origUrl) return photo._origUrl;
-
-    let res = '';
-    if (photo.filename) {
-      res = photo.filename.startsWith('http') ? photo.filename : `${API_BASE}/uploads/originals/${photo.filename}`;
-    } else {
-      const fallback = photo.original_url || photo.micro_url || '';
-      res = fallback.startsWith('http') ? fallback : `${API_BASE}${fallback}`;
-    }
-    photo._origUrl = res;
-    return res;
+    return getThumbUrl(photo);
   }
 
   // Off-Thread Idle Prefetching (0ms Blocking Delay - 30 Photos Ahead / 15 Behind)

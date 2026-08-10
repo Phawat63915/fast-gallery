@@ -1,15 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fast-gallery/backend/db"
 	"fast-gallery/backend/upload"
 	"fmt"
-	"image"
-	"image/jpeg"
-	_ "image/png"
 	"io"
 	"log"
 	"net/http"
@@ -20,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	xdraw "golang.org/x/image/draw"
 )
 
 var (

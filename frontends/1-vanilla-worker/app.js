@@ -420,20 +420,10 @@
 
   function computeLayout(isAppend = false) {
     const containerWidth = scrollContainer.clientWidth || window.innerWidth;
-    let targetH = 180;
-    if (containerWidth <= 480) {
-      targetH = 150; // Mobile Portrait: 2-3 photos per row, 100% full width
-    } else if (containerWidth <= 768) {
-      targetH = 160; // Mobile Landscape / Small Tablet
-    } else if (containerWidth <= 1024) {
-      targetH = 170; // Tablet
-    }
-
     layoutWorker.postMessage({
       photos: state.photos,
       containerWidth: containerWidth,
-      targetRowHeight: targetH,
-      gap: 1,
+      gap: 2,
       isAppend: isAppend,
     });
   }

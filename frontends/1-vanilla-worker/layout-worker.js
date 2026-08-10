@@ -1,113 +1,79 @@
+// FastGallery Worker Engine: Google / Apple Photos Style Uniform Responsive Grid
+// Features: Pixel-Perfect Symmetric Columns, 0% Distortion, Zero Blank Margins
+
 let cachedState = {
   photosLength: 0,
   containerWidth: 0,
-  targetRowHeight: 220,
-  gap: 3,
+  gap: 2,
   rows: [],
-  currentRow: [],
-  currentAspectRatioSum: 0,
-  currentY: 0,
 };
 
 self.onmessage = function (e) {
-  const { photos, containerWidth, targetRowHeight, gap, isAppend } = e.data;
+  const { photos, containerWidth, gap } = e.data;
   if (!photos || photos.length === 0 || containerWidth <= 0) {
     cachedState.rows = [];
     cachedState.photosLength = 0;
-    cachedState.currentY = 0;
     self.postMessage({ rows: [], totalHeight: 0 });
     return;
   }
 
-  const gridGap = gap !== undefined ? gap : 3;
-  const targetH = targetRowHeight || 220;
+  const gridGap = gap !== undefined ? gap : 2;
 
-  let startIndex = 0;
-  let rows = [];
-  let currentRow = [];
-  let currentAspectRatioSum = 0;
-  let currentY = 0;
-
-  const canAppend = isAppend &&
-    cachedState.containerWidth === containerWidth &&
-    cachedState.targetRowHeight === targetH &&
-    cachedState.gap === gridGap &&
-    photos.length > cachedState.photosLength;
-
-  if (canAppend) {
-    rows = cachedState.rows;
-    currentRow = cachedState.currentRow;
-    currentAspectRatioSum = cachedState.currentAspectRatioSum;
-    currentY = cachedState.currentY;
-    startIndex = cachedState.photosLength;
+  // Responsive column counts (Google Photos style)
+  let cols = 2; // Mobile Portrait default (2 perfectly symmetric columns)
+  if (containerWidth > 1400) {
+    cols = 5;
+  } else if (containerWidth > 1000) {
+    cols = 4;
+  } else if (containerWidth > 580) {
+    cols = 3;
   }
 
-  for (let i = startIndex; i < photos.length; i++) {
-    const photo = photos[i];
-    const ar = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
-    currentRow.push(photo);
-    currentAspectRatioSum += ar;
+  // Uniform tile aspect ratio (1.6 for widescreen 16:9 photos)
+  const targetAR = 1.6;
 
-    const availableWidth = containerWidth - (currentRow.length - 1) * gridGap;
-    const projectedHeight = availableWidth / currentAspectRatioSum;
-    const isLastItem = (i === photos.length - 1);
+  const totalGaps = (cols - 1) * gridGap;
+  const colWidth = Math.floor((containerWidth - totalGaps) / cols);
+  const extraPixels = containerWidth - (colWidth * cols + totalGaps);
+  const tileHeight = Math.floor(colWidth / targetAR);
 
-    if (projectedHeight <= targetH || isLastItem) {
-      const isLastRowUnfilled = isLastItem && (projectedHeight > targetH * 1.3);
-      const rowHeight = isLastRowUnfilled ? targetH : Math.max(90, Math.min(320, projectedHeight));
+  let rows = [];
+  let currentY = 0;
 
-      const rawWidths = currentRow.map(item => {
-        const itemAR = item.aspect_ratio || (item.width && item.height ? item.width / item.height : 1.5);
-        return Math.floor(rowHeight * itemAR);
+  for (let i = 0; i < photos.length; i += cols) {
+    const rowPhotos = photos.slice(i, i + cols);
+    const layoutItems = [];
+    let currentX = 0;
+
+    for (let c = 0; c < rowPhotos.length; c++) {
+      const photo = rowPhotos[c];
+      const itemW = colWidth + (c === rowPhotos.length - 1 && rowPhotos.length === cols ? extraPixels : 0);
+
+      layoutItems.push({
+        photo: photo,
+        x: currentX,
+        y: currentY,
+        width: itemW,
+        height: tileHeight,
       });
 
-      const totalRawWidth = rawWidths.reduce((a, b) => a + b, 0);
-      const targetAvailableWidth = containerWidth - (currentRow.length - 1) * gridGap;
-      const diff = !isLastRowUnfilled ? (targetAvailableWidth - totalRawWidth) : 0;
-
-      let currentX = 0;
-      const layoutItems = [];
-
-      for (let j = 0; j < currentRow.length; j++) {
-        const item = currentRow[j];
-        let itemWidth = rawWidths[j];
-        if (diff !== 0 && totalRawWidth > 0) {
-          if (j === currentRow.length - 1) {
-            const usedWidth = layoutItems.reduce((acc, it) => acc + it.width + gridGap, 0);
-            itemWidth = containerWidth - usedWidth;
-          } else {
-            const extra = Math.floor(diff * (rawWidths[j] / totalRawWidth));
-            itemWidth += extra;
-          }
-        }
-
-        layoutItems.push({
-          photo: item,
-          x: currentX,
-          y: currentY,
-          width: Math.max(10, itemWidth),
-          height: Math.floor(rowHeight),
-        });
-
-        currentX += itemWidth + gridGap;
-      }
-
-      rows.push({ y: currentY, height: Math.floor(rowHeight), items: layoutItems });
-      currentY += Math.floor(rowHeight) + gridGap;
-      currentRow = [];
-      currentAspectRatioSum = 0;
+      currentX += itemW + gridGap;
     }
+
+    rows.push({
+      y: currentY,
+      height: tileHeight,
+      items: layoutItems,
+    });
+
+    currentY += tileHeight + gridGap;
   }
 
   cachedState = {
     photosLength: photos.length,
     containerWidth: containerWidth,
-    targetRowHeight: targetH,
     gap: gridGap,
     rows: rows,
-    currentRow: currentRow,
-    currentAspectRatioSum: currentAspectRatioSum,
-    currentY: currentY,
   };
 
   self.postMessage({ rows: rows, totalHeight: currentY });

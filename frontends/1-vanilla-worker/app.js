@@ -110,13 +110,23 @@
   `;
 
   async function initWebGPU() {
-    if (!navigator.gpu) return false;
+    if (!navigator.gpu) {
+      console.warn('[FastGallery] navigator.gpu is undefined. WebGPU requires Chrome 113+ or Safari 18+ on localhost/https.');
+      return false;
+    }
     try {
-      gpuAdapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (!gpuAdapter) return false;
+      gpuAdapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }) ||
+                   await navigator.gpu.requestAdapter();
+      if (!gpuAdapter) {
+        console.warn('[FastGallery] GPUAdapter could not be requested. Falling back to WebGL 2.0.');
+        return false;
+      }
       gpuDevice = await gpuAdapter.requestDevice();
       gpuContext = galleryStageCanvas.getContext('webgpu');
-      if (!gpuContext) return false;
+      if (!gpuContext) {
+        console.warn('[FastGallery] Canvas webgpu context unavailable. Falling back to WebGL 2.0.');
+        return false;
+      }
 
       gpuFormat = navigator.gpu.getPreferredCanvasFormat();
       gpuContext.configure({

@@ -552,7 +552,7 @@
     }
   }
 
-  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH, distFromCenter = 0) {
+  function fetchImageTexture(url, visibleUrlsSet, reqW, reqH) {
     if (!url) return null;
     if (imageTextureMap.has(url)) {
       const tex = imageTextureMap.get(url);
@@ -567,9 +567,7 @@
     }
 
     imageTextureMap.set(url, null);
-
-    fetchQueue.push({ url, reqW, reqH, dist: distFromCenter });
-    fetchQueue.sort((a, b) => a.dist - b.dist);
+    fetchQueue.push({ url, reqW, reqH });
     processFetchQueue(visibleUrlsSet);
 
     return null;
@@ -760,8 +758,9 @@
         const targetY = y - scrollTop;
         const thumbUrl = getThumbUrl(photo);
 
-        const distFromCenter = Math.abs((targetY + height * 0.5) - (vpHeight * 0.5));
-        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH, distFromCenter);
+        const reqW = Math.round(width * dpr);
+        const reqH = Math.round(height * dpr);
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
 
         if (texObj && texObj.gpuTex) {
           let itemObj = webgpuBindGroupMap.get(thumbUrl);
@@ -883,9 +882,9 @@
       for (let item of visibleItems) {
         const { photo, x, y, width, height } = item;
         const targetY = y - scrollTop;
-        const thumbUrl = getThumbUrl(photo);
-        const distFromCenter = Math.abs((targetY + height * 0.5) - (cachedViewportHeight * 0.5));
-        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH, distFromCenter);
+        const reqW = Math.round(width * dpr);
+        const reqH = Math.round(height * dpr);
+        const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
 
         const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
         const boxAspect = width / height;

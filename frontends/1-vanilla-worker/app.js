@@ -112,20 +112,27 @@
 
   async function initWebGPU() {
     if (!navigator.gpu) {
-      console.warn('[FastGallery] navigator.gpu is undefined. WebGPU requires Chrome 113+ or Safari 18+ on localhost/https.');
+      const msg = 'navigator.gpu undefined';
+      console.warn('[FastGallery]', msg);
+      if (statEngine) statEngine.textContent = `WebGL 2.0 (${msg})`;
       return false;
     }
     try {
       gpuAdapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }) ||
+                   await navigator.gpu.requestAdapter({ powerPreference: 'low-power' }) ||
                    await navigator.gpu.requestAdapter();
       if (!gpuAdapter) {
-        console.warn('[FastGallery] GPUAdapter could not be requested. Falling back to WebGL 2.0.');
+        const msg = 'GPUAdapter null';
+        console.warn('[FastGallery]', msg);
+        if (statEngine) statEngine.textContent = `WebGL 2.0 (${msg})`;
         return false;
       }
       gpuDevice = await gpuAdapter.requestDevice();
       gpuContext = galleryStageCanvas.getContext('webgpu');
       if (!gpuContext) {
-        console.warn('[FastGallery] Canvas webgpu context unavailable. Falling back to WebGL 2.0.');
+        const msg = 'webgpu context null';
+        console.warn('[FastGallery]', msg);
+        if (statEngine) statEngine.textContent = `WebGL 2.0 (${msg})`;
         return false;
       }
 
@@ -142,6 +149,15 @@
       });
 
       const shaderModule = gpuDevice.createShaderModule({ code: wgslShaderCode });
+      const compilationInfo = await shaderModule.getCompilationInfo();
+      if (compilationInfo && compilationInfo.messages) {
+        for (const m of compilationInfo.messages) {
+          if (m.type === 'error') {
+            console.error('WGSL compilation error:', m.message, 'line:', m.lineNum);
+          }
+        }
+      }
+
       gpuPipeline = gpuDevice.createRenderPipeline({
         layout: 'auto',
         vertex: {
@@ -157,11 +173,26 @@
       });
 
       isWebGPUMode = true;
-      if (statEngine) statEngine.textContent = 'WebGPU (WGSL)';
+      if (statEngine) {
+        statEngine.textContent = 'WebGPU (WGSL)';
+        statEngine.style.color = '#38bdf8';
+      }
       console.log('⚡ WebGPU WGSL Engine initialized successfully!');
+      
+      const resizeObserver = new ResizeObserver(() => {
+        if (gpuContext && galleryStageCanvas) {
+            galleryStageCanvas.width = galleryStageCanvas.clientWidth * window.devicePixelRatio;
+            galleryStageCanvas.height = galleryStageCanvas.clientHeight * window.devicePixelRatio;
+        }
+      });
+      resizeObserver.observe(galleryStageCanvas);
+      
       return true;
     } catch (e) {
-      console.warn('WebGPU init failed, falling back to WebGL:', e);
+      console.warn('WebGPU init exception, falling back to WebGL:', e);
+      if (statEngine) {
+        statEngine.textContent = `WebGL 2.0 (GLSL) [WebGPU: ${e.message || 'Error'}]`;
+      }
       return false;
     }
   }

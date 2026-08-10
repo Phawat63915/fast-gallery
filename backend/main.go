@@ -100,13 +100,11 @@ func main() {
 			return
 		}
 
-		if disableThumbnails && strings.HasPrefix(r.URL.Path, "thumbnails/") {
+		// Direct 0-ms Zero-Check Original File Serving
+		if strings.HasPrefix(r.URL.Path, "thumbnails/") {
 			relPath := strings.TrimPrefix(r.URL.Path, "thumbnails/")
-			originalFilePath := filepath.Join(uploadsDir, "originals", relPath)
-			if _, err := os.Stat(originalFilePath); err == nil {
-				http.ServeFile(w, r, originalFilePath)
-				return
-			}
+			http.ServeFile(w, r, filepath.Join(uploadsDir, "originals", relPath))
+			return
 		}
 
 		fileServer.ServeHTTP(w, r)

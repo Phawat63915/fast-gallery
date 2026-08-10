@@ -1,5 +1,5 @@
-// FastGallery Multi-Engine Layout Worker (Masonry Pinterest vs Uniform Grid Google Photos)
-// Features: Dynamic Responsive Columns (Target 240px), Zoom-Responsive Scaling, Zero Lag
+// FastGallery Resolution-Aware Multi-Engine Layout Worker
+// Features: Resolution-Aware Scaling (width & height), Multi-Span 2x Wide 4K Cards, Anti-Blur Clamping
 
 let cachedState = {
   photosLength: 0,
@@ -21,9 +21,16 @@ self.onmessage = function (e) {
   const gridGap = gap !== undefined ? gap : 2;
   const layoutMode = mode || 'masonry';
 
-  // Dynamic Responsive Column Calculation (Target ~240px per column - scales dynamically when zooming)
-  const targetColWidth = 240;
-  let cols = Math.max(2, Math.floor((containerWidth + gridGap) / (targetColWidth + gridGap)));
+  let cols = 2;
+  if (containerWidth > 1500) {
+    cols = 6;
+  } else if (containerWidth > 1150) {
+    cols = 5;
+  } else if (containerWidth > 800) {
+    cols = 4;
+  } else if (containerWidth > 500) {
+    cols = 3;
+  }
 
   const totalGaps = (cols - 1) * gridGap;
   const availableWidth = containerWidth - totalGaps;
@@ -32,7 +39,7 @@ self.onmessage = function (e) {
 
   if (layoutMode === 'masonry') {
     // -------------------------------------------------------------
-    // 1. Masonry Engine (Pinterest Style: Full Uncropped Photos)
+    // 1. Resolution-Aware Masonry Engine (Pinterest Style with Resolution Clamping)
     // -------------------------------------------------------------
     const colHeights = new Array(cols).fill(0);
     const colItems = Array.from({ length: cols }, () => []);
@@ -40,15 +47,16 @@ self.onmessage = function (e) {
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       let rawAR = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
-      
-      // Clamp aspect ratio between 0.75 (portrait) and 2.0 (landscape) to prevent oversized stretching
       const ar = Math.max(0.75, Math.min(2.0, rawAR));
 
       const minCol = colHeights.indexOf(Math.min(...colHeights));
       const itemW = baseColWidth + (minCol < remainderPixels ? 1 : 0);
       
-      // Calculate balanced item height (capped at 420px max)
-      const maxH = Math.min(420, Math.floor(itemW * 1.35));
+      // Calculate height with resolution awareness (prevent small images from stretching excessively)
+      let maxH = Math.min(420, Math.floor(itemW * 1.35));
+      if (photo.height && photo.height < 400) {
+        maxH = Math.min(maxH, photo.height); // Anti-blur resolution cap
+      }
       const minH = Math.max(80, Math.floor(itemW * 0.5));
       const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / ar)));
 
@@ -88,56 +96,94 @@ self.onmessage = function (e) {
     if (currentRow) rows.push(currentRow);
 
     const totalHeight = Math.max(...colHeights);
-
-    cachedState = {
-      photosLength: photos.length,
-      containerWidth: containerWidth,
-      gap: gridGap,
-      mode: layoutMode,
-      rows: rows,
-    };
-
     self.postMessage({ rows: rows, totalHeight: totalHeight });
     return;
   }
 
   // -------------------------------------------------------------
-  // 2. Uniform Responsive Grid Engine (Google Photos Style: Equal Rows)
+  // 2. Resolution-Aware Smart Grid Engine (Multi-Span 4K & Anti-Blur)
   // -------------------------------------------------------------
-  const targetAR = 1.6;
-  const tileHeight = Math.floor(baseColWidth / targetAR);
+  const colOccupiedY = new Array(cols).fill(0);
+  const allLayoutItems = [];
 
-  let rows = [];
-  let currentY = 0;
-
-  for (let i = 0; i < photos.length; i += cols) {
-    const rowPhotos = photos.slice(i, i + cols);
-    const layoutItems = [];
-    let currentX = 0;
-
-    for (let c = 0; c < rowPhotos.length; c++) {
-      const photo = rowPhotos[c];
-      const itemW = baseColWidth + (c < remainderPixels ? 1 : 0);
-
-      layoutItems.push({
-        photo: photo,
-        x: currentX,
-        y: currentY,
-        width: itemW,
-        height: tileHeight,
-      });
-
-      currentX += itemW + gridGap;
+  for (let i = 0; i < photos.length; i++) {
+    const photo = photos[i];
+    const rawAR = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+    const photoW = photo.width || 1200;
+    
+    // High-Res Landscape screenshots (Width >= 1200 & AR >= 1.35) take 2 columns wide!
+    let colSpan = 1;
+    if (photoW >= 1200 && rawAR >= 1.35 && cols >= 4) {
+      colSpan = 2;
     }
 
-    rows.push({
-      y: currentY,
-      height: tileHeight,
-      items: layoutItems,
+    // Find consecutive columns with lowest Y height
+    let bestCol = 0;
+    let minY = Infinity;
+
+    for (let c = 0; c <= cols - colSpan; c++) {
+      let maxHInSpan = 0;
+      for (let s = 0; s < colSpan; s++) {
+        maxHInSpan = Math.max(maxHInSpan, colOccupiedY[c + s]);
+      }
+      if (maxHInSpan < minY) {
+        minY = maxHInSpan;
+        bestCol = c;
+      }
+    }
+
+    let itemW = 0;
+    for (let s = 0; s < colSpan; s++) {
+      itemW += baseColWidth + ((bestCol + s) < remainderPixels ? 1 : 0);
+    }
+    itemW += (colSpan - 1) * gridGap;
+
+    let itemH = Math.floor(itemW / Math.max(0.75, Math.min(2.4, rawAR)));
+    if (colSpan === 2) {
+      itemH = Math.min(360, Math.max(180, itemH));
+    } else {
+      itemH = Math.min(280, Math.max(120, itemH));
+    }
+
+    let currentX = 0;
+    for (let c = 0; c < bestCol; c++) {
+      currentX += (baseColWidth + (c < remainderPixels ? 1 : 0)) + gridGap;
+    }
+
+    const itemY = minY;
+
+    allLayoutItems.push({
+      photo: photo,
+      x: currentX,
+      y: itemY,
+      width: itemW,
+      height: itemH,
     });
 
-    currentY += tileHeight + gridGap;
+    for (let s = 0; s < colSpan; s++) {
+      colOccupiedY[bestCol + s] = itemY + itemH + gridGap;
+    }
   }
+
+  allLayoutItems.sort((a, b) => a.y - b.y);
+
+  const rows = [];
+  let currentY = -1;
+  let currentRow = null;
+
+  for (let item of allLayoutItems) {
+    if (item.y !== currentY) {
+      if (currentRow) rows.push(currentRow);
+      currentY = item.y;
+      currentRow = { y: currentY, height: item.height, items: [item] };
+    } else if (currentRow) {
+      currentRow.items.push(item);
+      currentRow.height = Math.max(currentRow.height, item.height);
+    }
+  }
+  if (currentRow) rows.push(currentRow);
+
+  const totalHeight = Math.max(...colOccupiedY);
 
   cachedState = {
     photosLength: photos.length,
@@ -147,5 +193,5 @@ self.onmessage = function (e) {
     rows: rows,
   };
 
-  self.postMessage({ rows: rows, totalHeight: currentY });
+  self.postMessage({ rows: rows, totalHeight: totalHeight });
 };

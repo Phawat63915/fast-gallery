@@ -19,6 +19,8 @@ type Photo struct {
 	ID          string  `json:"id"`
 	Filename    string  `json:"filename"`
 	CreatedAt   int64   `json:"created_at"`
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
 	AspectRatio float64 `json:"aspect_ratio"`
 }
 
@@ -105,21 +107,29 @@ func (db *DB) migrateSchema() error {
 			id VARCHAR(255) PRIMARY KEY,
 			filename TEXT NOT NULL,
 			created_at BIGINT NOT NULL,
+			width INT NOT NULL DEFAULT 0,
+			height INT NOT NULL DEFAULT 0,
 			aspect_ratio DOUBLE PRECISION NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_id ON photos (created_at DESC, id);
 		`
+		db.conn.Exec(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS width INT NOT NULL DEFAULT 0;`)
+		db.conn.Exec(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS height INT NOT NULL DEFAULT 0;`)
 	} else {
 		schema = `
 		CREATE TABLE IF NOT EXISTS photos (
 			id TEXT PRIMARY KEY,
 			filename TEXT NOT NULL,
 			created_at INTEGER NOT NULL,
+			width INTEGER NOT NULL DEFAULT 0,
+			height INTEGER NOT NULL DEFAULT 0,
 			aspect_ratio REAL NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
 		`
+		db.conn.Exec(`ALTER TABLE photos ADD COLUMN width INTEGER NOT NULL DEFAULT 0;`)
+		db.conn.Exec(`ALTER TABLE photos ADD COLUMN height INTEGER NOT NULL DEFAULT 0;`)
 	}
 
 	_, err := db.conn.Exec(schema)
@@ -139,24 +149,24 @@ func (db *DB) GetPhotos(cursor int64, offset int, limit int) ([]Photo, error) {
 
 	if db.driver == "postgres" {
 		if offset > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`
 			rows, err = db.conn.Query(query, limit, offset)
 		} else if cursor > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at <= $1 ORDER BY created_at DESC, id DESC LIMIT $2`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos WHERE created_at <= $1 ORDER BY created_at DESC, id DESC LIMIT $2`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT $1`
 			rows, err = db.conn.Query(query, limit)
 		}
 	} else {
 		if offset > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
 			rows, err = db.conn.Query(query, limit, offset)
 		} else if cursor > 0 {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos WHERE created_at <= ? ORDER BY created_at DESC, id DESC LIMIT ?`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos WHERE created_at <= ? ORDER BY created_at DESC, id DESC LIMIT ?`
 			rows, err = db.conn.Query(query, cursor, limit)
 		} else {
-			query := `SELECT id, filename, created_at, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ?`
+			query := `SELECT id, filename, created_at, width, height, aspect_ratio FROM photos ORDER BY created_at DESC, id DESC LIMIT ?`
 			rows, err = db.conn.Query(query, limit)
 		}
 	}
@@ -169,7 +179,7 @@ func (db *DB) GetPhotos(cursor int64, offset int, limit int) ([]Photo, error) {
 	photos := make([]Photo, 0, limit)
 	for rows.Next() {
 		var p Photo
-		err := rows.Scan(&p.ID, &p.Filename, &p.CreatedAt, &p.AspectRatio)
+		err := rows.Scan(&p.ID, &p.Filename, &p.CreatedAt, &p.Width, &p.Height, &p.AspectRatio)
 		if err != nil {
 			return nil, err
 		}
@@ -191,15 +201,20 @@ func (db *DB) InsertPhoto(p Photo) error {
 
 	var query string
 	if db.driver == "postgres" {
-		query = `INSERT INTO photos (id, filename, created_at, aspect_ratio)
-		VALUES ($1, $2, $3, $4)
+		query = `INSERT INTO photos (id, filename, created_at, width, height, aspect_ratio)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (id) DO UPDATE SET
-		filename=EXCLUDED.filename, created_at=EXCLUDED.created_at, aspect_ratio=EXCLUDED.aspect_ratio`
+		filename=EXCLUDED.filename, created_at=EXCLUDED.created_at, width=EXCLUDED.width, height=EXCLUDED.height, aspect_ratio=EXCLUDED.aspect_ratio`
 	} else {
-		query = `INSERT OR REPLACE INTO photos (id, filename, created_at, aspect_ratio) VALUES (?, ?, ?, ?)`
+		query = `INSERT OR REPLACE INTO photos (id, filename, created_at, width, height, aspect_ratio) VALUES (?, ?, ?, ?, ?, ?)`
 	}
 
-	_, err := db.conn.Exec(query, p.ID, p.Filename, p.CreatedAt, p.AspectRatio)
+	var err error
+	if db.driver == "postgres" {
+		_, err = db.conn.Exec(query, p.ID, p.Filename, p.CreatedAt, p.Width, p.Height, p.AspectRatio)
+	} else {
+		_, err = db.conn.Exec(query, p.ID, p.Filename, p.CreatedAt, p.Width, p.Height, p.AspectRatio)
+	}
 	return err
 }
 
@@ -231,9 +246,9 @@ func (db *DB) SeedBenchmarkPhotos(count int) {
 
 	var stmt *sql.Stmt
 	if db.driver == "postgres" {
-		stmt, err = tx.Prepare(`INSERT INTO photos (id, filename, created_at, aspect_ratio) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`)
+		stmt, err = tx.Prepare(`INSERT INTO photos (id, filename, created_at, width, height, aspect_ratio) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`)
 	} else {
-		stmt, err = tx.Prepare(`INSERT OR REPLACE INTO photos (id, filename, created_at, aspect_ratio) VALUES (?, ?, ?, ?)`)
+		stmt, err = tx.Prepare(`INSERT OR REPLACE INTO photos (id, filename, created_at, width, height, aspect_ratio) VALUES (?, ?, ?, ?, ?, ?)`)
 	}
 
 	if err != nil {
@@ -251,8 +266,10 @@ func (db *DB) SeedBenchmarkPhotos(count int) {
 		filename := fmt.Sprintf("photo_%06d.jpg", i+1)
 		createdAt := now - int64(i*1800000+rand.Intn(300000))
 		ar := aspectRatios[i%len(aspectRatios)]
+		w := 1920
+		h := int(float64(w) / ar)
 
-		_, err := stmt.Exec(id, filename, createdAt, ar)
+		_, err := stmt.Exec(id, filename, createdAt, w, h, ar)
 		if err != nil {
 			log.Printf("Error seeding item %d: %v", i, err)
 		}

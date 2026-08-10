@@ -64,6 +64,8 @@
         uniform vec2 u_resolution;
         uniform vec2 u_translation;
         uniform vec2 u_scale;
+        uniform vec2 u_uv_scale;
+        uniform vec2 u_uv_offset;
         varying vec2 v_texCoord;
 
         void main() {
@@ -72,7 +74,7 @@
           vec2 zeroToTwo = zeroToOne * 2.0;
           vec2 clipSpace = zeroToTwo - 1.0;
           gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0.0, 1.0);
-          v_texCoord = a_texCoord;
+          v_texCoord = a_texCoord * u_uv_scale + u_uv_offset;
         }
       `;
 
@@ -126,6 +128,8 @@
         u_resolution: gl.getUniformLocation(webglProgram, 'u_resolution'),
         u_translation: gl.getUniformLocation(webglProgram, 'u_translation'),
         u_scale: gl.getUniformLocation(webglProgram, 'u_scale'),
+        u_uv_scale: gl.getUniformLocation(webglProgram, 'u_uv_scale'),
+        u_uv_offset: gl.getUniformLocation(webglProgram, 'u_uv_offset'),
         u_image: gl.getUniformLocation(webglProgram, 'u_image'),
         u_color: gl.getUniformLocation(webglProgram, 'u_color'),
         u_useTexture: gl.getUniformLocation(webglProgram, 'u_useTexture'),
@@ -300,7 +304,7 @@
           return res.blob();
         })
         .then(blob => {
-          const opts = (reqW && reqH) ? { resizeWidth: reqW, resizeHeight: reqH, resizeQuality: 'medium' } : undefined;
+          const opts = reqW ? { resizeWidth: Math.max(reqW, 360), resizeQuality: 'medium' } : undefined;
           return createImageBitmap(blob, opts);
         })
         .then(bitmap => {
@@ -551,6 +555,22 @@
         const reqW = Math.round(width * dpr);
         const reqH = Math.round(height * dpr);
         const texObj = fetchImageTexture(thumbUrl, visibleUrlsSet, reqW, reqH);
+
+        const photoAspect = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
+        const boxAspect = width / height;
+        let uvScaleX = 1.0, uvScaleY = 1.0;
+        let uvOffsetX = 0.0, uvOffsetY = 0.0;
+
+        if (boxAspect > photoAspect) {
+          uvScaleY = photoAspect / boxAspect;
+          uvOffsetY = (1.0 - uvScaleY) * 0.5;
+        } else if (boxAspect < photoAspect) {
+          uvScaleX = boxAspect / photoAspect;
+          uvOffsetX = (1.0 - uvScaleX) * 0.5;
+        }
+
+        gl.uniform2f(webglLocations.u_uv_scale, uvScaleX, uvScaleY);
+        gl.uniform2f(webglLocations.u_uv_offset, uvOffsetX, uvOffsetY);
 
         if (texObj && texObj.glTex) {
           gl.uniform1i(webglLocations.u_useTexture, 1);

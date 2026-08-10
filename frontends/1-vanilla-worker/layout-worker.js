@@ -1,5 +1,5 @@
 // FastGallery Resolution-Aware Multi-Engine Layout Worker
-// Features: Dynamic Zoom Scaling (Target 240px), Resolution-Aware Scaling, Anti-Blur Clamping
+// Features: Dynamic Zoom Scaling (Target 240px), Strict Portrait Height Clamping, Anti-Pixelation Protection
 
 let cachedState = {
   photosLength: 0,
@@ -32,7 +32,7 @@ self.onmessage = function (e) {
 
   if (layoutMode === 'masonry') {
     // -------------------------------------------------------------
-    // 1. Resolution-Aware Masonry Engine (Pinterest Style with Resolution Clamping)
+    // 1. Resolution-Aware Masonry Engine (Clamped Portrait Height & Anti-Pixelation)
     // -------------------------------------------------------------
     const colHeights = new Array(cols).fill(0);
     const colItems = Array.from({ length: cols }, () => []);
@@ -40,17 +40,27 @@ self.onmessage = function (e) {
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       let rawAR = photo.aspect_ratio || (photo.width && photo.height ? photo.width / photo.height : 1.5);
-      const ar = Math.max(0.75, Math.min(2.0, rawAR));
+      
+      // Strict Portrait Height Clamping & Anti-Pixelation Rule:
+      // Portrait photos (rawAR < 1.0) are clamped so their height NEVER exceeds standard landscape photo height!
+      let effectiveAR = rawAR;
+      if (rawAR < 1.0) {
+        effectiveAR = Math.max(1.0, rawAR);
+      }
 
       const minCol = colHeights.indexOf(Math.min(...colHeights));
       const itemW = baseColWidth + (minCol < remainderPixels ? 1 : 0);
       
-      let maxH = Math.min(420, Math.floor(itemW * 1.35));
-      if (photo.height && photo.height < 400) {
+      // Standard landscape height cap (~260px max)
+      let maxH = Math.min(260, Math.floor(itemW * 0.9));
+
+      // Anti-pixelation cap: If photo native height is small, don't stretch it bigger than native height!
+      if (photo.height && photo.height > 0 && photo.height < 500) {
         maxH = Math.min(maxH, photo.height);
       }
-      const minH = Math.max(80, Math.floor(itemW * 0.5));
-      const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / ar)));
+
+      const minH = Math.max(70, Math.floor(itemW * 0.45));
+      const itemH = Math.max(minH, Math.min(maxH, Math.floor(itemW / effectiveAR)));
 
       let currentX = 0;
       for (let c = 0; c < minCol; c++) {
@@ -130,9 +140,9 @@ self.onmessage = function (e) {
 
     let itemH = Math.floor(itemW / Math.max(0.75, Math.min(2.4, rawAR)));
     if (colSpan === 2) {
-      itemH = Math.min(360, Math.max(180, itemH));
+      itemH = Math.min(300, Math.max(160, itemH));
     } else {
-      itemH = Math.min(280, Math.max(120, itemH));
+      itemH = Math.min(240, Math.max(110, itemH));
     }
 
     let currentX = 0;
